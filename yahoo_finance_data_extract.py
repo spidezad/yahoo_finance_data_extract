@@ -13,6 +13,14 @@
     Learning:
         replace all names
         dataset.rename(columns={typo: 'Address' for typo in AddressCol}, inplace=True)
+
+        list of stocks symbol
+        http://investexcel.net/all-yahoo-finance-stock-tickers/
+
+        Url from yahoo finance --> sort by alphabet and by page
+        https://sg.finance.yahoo.com/lookup/stocks?s=a&t=S&m=SG&r=
+        https://sg.finance.yahoo.com/lookup/stocks?s=a&t=S&m=SG&r=&b=20
+        https://sg.finance.yahoo.com/lookup/stocks?s=b&t=S&m=SG&r=
         
 """
 
