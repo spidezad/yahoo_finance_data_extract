@@ -6,12 +6,17 @@
     https://code.google.com/p/yahoo-finance-managed/wiki/CSVAPI
 
     Updates:
+        Aug 22 2014: Add in excel to choose propertries from.
+                   : Take care of situation where the particular extraction yield 0 results.
         Aug 19 2014: Add in capability to scape all the data set(>50)
         Aug 18 2014: Add in functions for multiple chunks procssing.
 
     TODO:
         get the list of data from table extract???
         use table extract fr excel
+        filter those zero volumes out and erratic data out.
+        Investigate why yield zero results.
+        May need to store the url
 
     Learning:
         replace all names
@@ -27,12 +32,14 @@
 
         Splitting list to even chunks
         http://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks-in-python
+
         
 """
 
 import os, re, sys, time, datetime, copy
 import pandas
 from pattern.web import URL, extension
+
  
 class YFinanceDataExtr(object):
     """ Class to extract data from yahoo finance.
@@ -57,9 +64,16 @@ class YFinanceDataExtr(object):
         self.cur_quotes_end_url = "&e=.csv"
         self.cur_quotes_full_url = ''
 
+        # Properties from excel
+        self.enable_form_properties_fr_exceltable = 1
+        self.properties_excel_table = r'C:\pythonuserfiles\yahoo_finance_data_extract\Individual_stock_query_property.xls'
+
         # Output storage
         self.cur_quotes_csvfile = r'c:\data\temp\stock_data.csv'
         self.cur_quotes_df = object()
+
+        # for debug
+        self.store_individual_set_df = []
 
     def set_target_stocks_list(self, list_of_stocks):
         """ Set the list of stocks to the self.target_stocks.
@@ -76,6 +90,28 @@ class YFinanceDataExtr(object):
             self.cur_quotes_stock_portion_url = self.cur_quotes_stock_portion_url + n + ','
             
         self.cur_quotes_stock_portion_url =self.cur_quotes_stock_portion_url[:-1]
+
+    def form_cur_quotes_property_url_str_fr_excel(self):
+        """ Required xls_table_extract_module.
+            Get all the properties from excel table.
+            Properties can be selected by comment out those properties not required.
+            Also set the heeader: self.cur_quotes_parm_headers for the values.
+
+        """
+        from xls_table_extract_module import XlsExtractor
+        self.xls_property_data = XlsExtractor(fname = self.properties_excel_table, sheetname= 'Sheet1',
+                                             param_start_key = 'stock_property//', param_end_key = 'stock_property_end//',
+                                             header_key = '', col_len = 2)
+
+        self.xls_property_data.open_excel_and_process_block_data()
+
+        ## form the header
+        self.cur_quotes_parm_headers = [n.encode() for n in self.xls_property_data.data_label_list]
+
+        ## form the url str
+        start_str = '&f='
+        target_properties = ''.join([n[0].encode().strip() for n in self.xls_property_data.data_value_list])
+        self.cur_quotes_property_portion_url =  start_str + target_properties
 
     def form_cur_quotes_property_url_str(self):
         """ To form the properties/parameters of the data to be received for current quotes
@@ -100,7 +136,13 @@ class YFinanceDataExtr(object):
         """
         if type == 'cur_quotes':
             self.form_cur_quotes_stock_url_str()
-            self.form_cur_quotes_property_url_str()
+            
+            # form the property. 2 methods enabled.
+            if self.enable_form_properties_fr_exceltable:
+                self.form_cur_quotes_property_url_str_fr_excel()
+            else:
+                self.form_cur_quotes_property_url_str()
+                
             self.cur_quotes_full_url = self.cur_quotes_start_url + self.cur_quotes_stock_portion_url +\
                                        self.cur_quotes_property_portion_url + self.cur_quotes_end_url
              
@@ -144,10 +186,15 @@ class YFinanceDataExtr(object):
             # set the small chunk of list
             self.set_target_stocks_list(n)
             self.get_cur_quotes()
-            if self.temp_full_data_df is None:
-                self.temp_full_data_df =  self.cur_quotes_df
-            else:
-                self.temp_full_data_df = self.temp_full_data_df.append(self.cur_quotes_df)
+    
+            ## need take care of cases where the return is empty -- will return Missing symbols list
+            if not len(self.cur_quotes_df.columns) < len(self.cur_quotes_parm_headers):
+                self.store_individual_set_df.append(self.cur_quotes_df)
+                if self.temp_full_data_df is None:
+                    self.temp_full_data_df =  self.cur_quotes_df
+                else:
+                    self.temp_full_data_df = self.temp_full_data_df.append(self.cur_quotes_df)
+
 
     def break_list_to_sub_list(self, full_list, chunk_size = 45):
         """ Break list into smaller equal chunks specified by chunk_size.
@@ -178,19 +225,33 @@ class YFinanceDataExtr(object):
         
 
 if __name__ == '__main__':
+    
     print "start processing"
-    data_ext = YFinanceDataExtr()
-   
-    ## read  data from .csv file -- full list of stocks
-    csv_fname = r'C:\pythonuserfiles\yahoo_finance_data_extract\stocklist.csv'
-    stock_list = pandas.read_csv(csv_fname)
-    # convert from pandas object to list
-    stock_list = list(stock_list['SYMBOL'])
+    
 
-    data_ext.get_cur_quotes_fr_list(stock_list)
-    data_ext.temp_full_data_df.to_csv(r'c:\data\full.csv')
+    choice = 1
 
+    if choice == 1:
+        data_ext = YFinanceDataExtr()
+        ## read  data from .csv file -- full list of stocks
+        csv_fname = r'C:\pythonuserfiles\yahoo_finance_data_extract\stocklist.csv'
+        stock_list = pandas.read_csv(csv_fname)
+        # convert from pandas object to list
+        stock_list = list(stock_list['SYMBOL'])
+        #stock_list = ['S58.SI','S68.SI']
+        data_ext.get_cur_quotes_fr_list(stock_list)
+        data_ext.temp_full_data_df.to_csv(r'c:\data\full.csv', index = False)
 
+    if choice == 2:
+        data_ext.form_url_str()
+        
+    if choice == 3:
+        counter = 0
+        for n in data_ext.store_individual_set_df:
+            print counter
+            counter = counter +1
+            print n[n.columns[:4]].head()
+            print '---'
 
 ##    ## Specify the stocks to be retrieved. Each url constuct max up to 50 stocks.
 ##    data_ext.target_stocks = ['S58.SI','S68.SI'] #special character need to be converted
