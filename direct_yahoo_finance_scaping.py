@@ -6,13 +6,8 @@ language
 https://developer.yahoo.com/boss/search/boss_api_guide/supp_regions_lang.html
 --> not very useful....
 
-"""
-import os, re, sys, time, datetime, copy
-import pandas
-from pattern.web import URL, extension
-from pattern.web import URL, DOM, plaintext
+Nicer way to initialzie a dcit
 
-## have a class??
 ## main to get the cash flow earning  data
 
 
@@ -20,26 +15,169 @@ from pattern.web import URL, DOM, plaintext
 ## or make it go number of depth defined (recusion)???
 ## may not need as can be nested within the str.
 
-#use yahoo query???
+## handle cases where there is problem on the webpage
+##handle time out and also when the quey limt
+
+Updates:
+    Aug 29 2014: Add in industry
+    Aug 28 2014: Open up the analyst opinion to include the number of broker.
+
+Learning:
+    create  an empty dataframe
+    http://stackoverflow.com/questions/13784192/creating-an-empty-pandas-dataframe-then-filling-it
+
+
+May have hit limit after a while. Need time to rest before retrieving
+
+TODO:
+    Handle balance sheet.
+    Group the industry
+    Debt to equity ratio
+    cash flow
+    need to get the financial out first
+
+"""
+import os, re, sys, time, datetime, copy
+import pandas
+from pattern.web import URL, DOM, plaintext, extension
 
 class YFinanceDirectScrape(object):
     """ Class to scrape data from yahoo finance.
-        Method through direct scraping.
-        
+        All data for this class get from YF through direct scraping.
+        This will scrape stock by stock.
     """
-
     def __init__(self):
-        ## url forming
-        self.full_url_str = 'https://sg.finance.yahoo.com/q/cf?s=S58.SI&annual'
 
-        ## dom objects
-        # the different tag element for parsing.
+        ## general param
+        self.all_stock_sym_list = list() # for all stock input.
+        self.individual_stock_sym   = ''
         
+        ## url forming -- for individual stock
+        self.start_url              = '' # will be preloaded with different start url.
+        self.individual_stock_url   = ''
+        self.full_url_str           = ''
+
+        ## param selector
+        ## for use in getting the different cycle of dict.
+        self.param_selector         = ''
+
+        ## Dict for different type of parsing. Starl url will differ.
+        self.start_url_dict = {
+                                'Company_desc': 'http://finance.yahoo.com/q?',
+                                'analyst_opinion':'http://finance.yahoo.com/q/ao?',
+                                'industry':'https://sg.finance.yahoo.com/q/in?',
+                                'key_stats': 'https://sg.finance.yahoo.com/q/ks?'
+                              }
+
+        ## selector for dom objects mainly for parsing the results.
+        ## still use the self.param_selector for selecting
+        ## may need additional str --> how to include additonal str?? or just create a function for it??
+        ## or put it all as header data str??
+        self.css_selector_dict = {
+                                'Company_desc': 'div#yfi_business_summary div[class="bd"]',
+                                'analyst_opinion':['td[class="yfnc_tablehead1"]','td[class="yfnc_tabledata1"]'], # analyst -- header, data str
+                                'industry':['th[class="yfnc_tablehead1]','td[class="yfnc_tabledata1]'],
+                                'key_stats':['td[class="yfnc_tablehead1]','td[class="yfnc_tabledata1]'],
+                                 }
+
+        ## Method select detection
+        self.parse_method_dict = {
+                                'Company_desc': self.parse_company_desc,
+                                'analyst_opinion': self.parse_analyst_opinion,
+                                'industry': self.parse_industry_info,
+                                'key_stats': self.parse_key_stats,
+                                 }
+
+        ## output storage
+        self.individual_stock_df = object() # individual df for storing the individual stocks.
+                                            # store all the column informaiton
+        self.header_list = list() # for holding the label of individual stock
+        self.value_list = list() # for holding the data of individual stock
+        self.all_stock_df =  None # dataframe object for holding all stocks
+        self.all_individual_df_list = list()
+
+        self.permanent_header_list = [] # give the header list that will be recorded in csv
+
+        ## fault detection
+        self.url_query_timeout = 0 # for time out issue when query.
+        
+
+        # the different tag element for parsing.
+        ## parsing might required different method.
+
+        ## might also set the different columns
+
+    def set_stock_to_retrieve(self, stock_sym):
+        """ Set the stock symbol required for retrieval.
+            Args:
+                stock_sym (str): Input the stock symbol.
+        """
+        assert type(stock_sym) == str
+        self.individual_stock_sym = stock_sym
+
+    def set_multiple_stock_list(self, stocklist):
+        """ Set the multiple stock list. Set to self.all_stock_sym_list
+            Args:
+                stocklist (list): list of stocks symbol.
+        """
+        self.all_stock_sym_list = stocklist
+        
+    def form_stock_part_url(self):
+        """ Formed the stock portion of the url for query.
+            Require the self.individual_stock_sym not to be empty
+        """
+        assert self.individual_stock_sym is not None
+        fixed_portion = 's='
+        self.individual_stock_url  = fixed_portion + self.individual_stock_sym
+
+    def get_list_of_param_selector_avaliable(self):
+        """ Print out the list of param_selector avaliable that make it easier to set.
+        """
+        print self.start_url_dict.keys()
+
+    def set_param_selector(self, param_type):
+        """ Set the param selector necessary to form the full url.
+            Args:
+                param_type (str): set the param type that will be present in self.start_url_dict.
+            Except:
+                Will raise if the param type is not present.
+        """
+        if param_type not in self.start_url_dict.keys():
+            print 'param type selected not valid.'
+            raise
+        self.param_selector =  param_type
+
+    def quick_set_symbol_and_param_type(self, sym, param_type):
+        """ A quick method to set the symbol and param type at one go.
+            Will also set the 
+            Args:
+                sym (str): stock symbol.
+                param_type (str): type of data to pull.
+        """
+        self.set_stock_to_retrieve(sym)
+        self.set_param_selector(param_type)
+        
+    def form_full_url(self):
+        """ Formed the full url based on the self.param_selectors.
+            self.param_selector must lies in the start_url_dict keys.
+            Will set the self.full_url_str.
+        """
+        assert self.param_selector in self.start_url_dict.keys()
+        self.form_stock_part_url()
+        self.start_url = self.start_url_dict[self.param_selector]
+        self.full_url_str = self.start_url + self.individual_stock_url
 
     def create_dom_object(self):
-        """ Create dom object based on element for scraping"""
-        url = URL(self.full_url_str)
-        self.dom_object = DOM(url.download(cached=True))
+        """ Create dom object based on element for scraping
+            Take into consideration that there might be query problem.
+            
+        """
+        try:
+            url = URL(self.full_url_str)
+            self.dom_object = DOM(url.download(cached=True))
+        except:
+            print 'Problem retrieving data for this url: ', self.full_url_str
+            self.url_query_timeout = 1
         
     def tag_element_results(self, dom_obj, tag_expr):
         """ Take in expression for dom tag expression.
@@ -54,17 +192,166 @@ class YFinanceDirectScrape(object):
         """
         return dom_obj(tag_expr)
 
+    def parse_all_parameters(self):
+        """ Parse all the parameters based on the self.start_url_dict.
+            After parse, set to object
+
+        """
+        for n in self.start_url_dict.keys():
+            print 'Parsing ', n
+            self.set_param_selector(n)
+            self.form_full_url()
+            print self.full_url_str
+            self.parse_method_dict[n]()
+            if self.url_query_timeout: return 
+
+        ## set the symbol to the list and create to dataframe.
+        self.header_list.insert(0, 'Symbol')
+        self.value_list.insert(0, self.individual_stock_sym)# need to convert to columns
+
+        ## create the stock df here.
+        self.create_individual_stock_df()
+
+    def create_individual_stock_df(self):
+        """Create dataframe of individual stock based on the header and value list."""
+        self.individual_stock_df = pandas.DataFrame(self.value_list).transpose()
+        self.individual_stock_df.rename(columns={org: change for org, change\
+                                           in zip(range(len(self.value_list)),self.header_list)},\
+                                              inplace=True)
+        
+    def parse_company_desc(self):
+        """ Method to parse the company info.
+            Specific to self.param_selector =  'Company_desc'.
+        """
+        assert self.param_selector == 'Company_desc'
+        self.create_dom_object()
+        if self.url_query_timeout: return 
+        dom_object = self.tag_element_results(self.dom_object, self.css_selector_dict[self.param_selector] )
+        self.value_list.append(str(dom_object[0][0]))
+        self.header_list.append('company_desc')
+
+    def parse_analyst_opinion(self):
+        """ Method to parse the analyst info.
+            Specific to self.param_selector =  'analyst_opinion'.
+
+            TODO: can make to general function.
+        """
+        assert self.param_selector == 'analyst_opinion'
+        self.create_dom_object()
+        if self.url_query_timeout: return
+
+        self.parse_one_level_header_value_set(0,8)
+
+
+    def parse_one_level_header_value_set(self, parse_start, parse_end):
+        """ Use for parsing general format of header value data.
+            Condition is that both header and value need to be scape.
+            The dom object that determine the parsing is of below form:
+            dom_object[parse_start:parse_end)]
+            
+            self.param_selector have to be set and the parse_qty need to be inputted.
+            Output will be saved to teh self.header_list and self.value_list directly
+            
+            Args:
+                parse_start (int): start of the total list to be parsed.
+                parse_end (int): end of the total list to be parsed.
+
+        """
+        
+        # process the header --> need 5 header
+        dom_object = self.tag_element_results(self.dom_object, self.css_selector_dict[self.param_selector][0] )
+        for n in dom_object[parse_start:parse_end]:
+            self.header_list.append(str(n.content).strip(':'))
+        #value
+        dom_object = self.tag_element_results(self.dom_object, self.css_selector_dict[self.param_selector][1] )
+        for n in dom_object[parse_start:parse_end]:
+            try:
+                temp_value_data = n.content
+                if temp_value_data.isalnum:
+                    self.value_list.append(temp_value_data) #if str append as str
+                else:
+                    self.value_list.append(temp_value_data)
+            except:
+                self.value_list.append(0)
+            
+        return dom_object
+
+    def parse_industry_info(self):
+        """ Get the industry categories of the particular stocks."""
+        assert self.param_selector == 'industry'
+        self.create_dom_object()
+        if self.url_query_timeout: return
+
+        self.parse_one_level_header_value_set(0,2)
+
+    def parse_key_stats(self):
+        """ Parse key statistics. Especially the financial data."""
+        assert self.param_selector == 'key_stats'
+        self.create_dom_object()
+        if self.url_query_timeout: return
+
+        self.parse_one_level_header_value_set(11, 19)
+        self.parse_one_level_header_value_set(21,31)
+
+    def clear_all_temp_store_data(self):
+        """ Clear all the temporary store data for processing and clear fault.
+        """
+        self.value_list = []
+        self.header_list = []
+        self.individual_stock_df = object()
+        self.url_query_timeout = 0
+
+    def obtain_multiple_stock_data(self):
+        """ Obtain multiple stocks data.
+
+        """
+        for n in self.all_stock_sym_list:
+            self.clear_all_temp_store_data()
+            print n
+            self.set_stock_to_retrieve(n)
+            self.parse_all_parameters()
+            if not self.url_query_timeout:  
+                self.all_individual_df_list.append(self.individual_stock_df)
+                if self.all_stock_df is None:
+                    self.all_stock_df = self.individual_stock_df
+                else:
+                    if len(self.individual_stock_df.columns) > len(self.all_stock_df.columns):
+                        self.all_stock_df = self.individual_stock_df.append(self.all_stock_df)
+                        self.permanent_header_list = copy.copy(self.header_list)
+                    else:
+                        self.all_stock_df = self.all_stock_df.append(self.individual_stock_df)
+
+        ## set the object to file
+        self.all_stock_df = ss.all_stock_df.reindex(columns = self.permanent_header_list)
+        self.all_stock_df.to_csv(r'c:\data\extrainfo.csv', index=False)
+
+
+
 if __name__ == '__main__':
     print
-    choice = 2
+    choice = 1
 
-    if choice  == 1:
+    if choice == 1:
+            ss = YFinanceDirectScrape()
+            ss.quick_set_symbol_and_param_type('S58.SI', 'analyst_opinion')
+            ss.form_full_url()
+##            print
+##            print ss.get_list_of_param_selector_avaliable()
+##            print ss.full_url_str
+##            #ss.parse_company_desc()
+##            d = ss.parse_analyst_opinion()
+##            print ss.header_list, ss.value_list
+            ss.parse_all_parameters()
+            print ss.individual_stock_df
+
+    if choice  == 3:
         
-        url_str ='http://feeds.finance.yahoo.com/rss/2.0/headline?s=S58.SI&region=SG&lang=en-SG'
+        url_str ='https://sg.finance.yahoo.com/q/ks?s=S24.SI'
         url =  URL(url_str)
         dom_object = DOM(url.download(cached=True))
         #get the yeear
-        dom_object('td[class="yfnc_modtitle1"]')
+        w= dom_object('td[class="yfnc_tabledata1"]')
+        w= dom_object('td[class="yfnc_tablehead1]')
 
     if choice == 2:
         yf = YFinanceDirectScrape()
@@ -78,6 +365,33 @@ if __name__ == '__main__':
         for n in yf.tag_element_results(yf.dom_object, 'td[align="right"] strong')[:4]:
             print n.content
             # will be the first 4 years
+
+    if choice ==4:
+
+        #or str away append ot csv
+
+        ## read  data from .csv file -- full list of stocks
+        csv_fname = r'C:\pythonuserfiles\yahoo_finance_data_extract\stocklist.csv'
+        stock_list = pandas.read_csv(csv_fname)
+        # convert from pandas object to list
+        stock_list = list(stock_list['SYMBOL'])
+        #stock_list =  stock_list[:10]
+
+        ss = YFinanceDirectScrape()
+        ss.set_multiple_stock_list(stock_list)
+        ss.obtain_multiple_stock_data()
+            
+
+
+##        total_df = []
+##        for n in stock_list[:10]:
+##            print n
+##            ss.set_stock_to_retrieve(n)
+##            ss.value_list = []
+##            ss.header_list = []
+##            ss.parse_all_parameters()
+##            print ss.individual_stock_df
+##            total_df.append(ss.individual_stock_df)
 
     
     

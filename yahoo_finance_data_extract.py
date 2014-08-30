@@ -6,6 +6,7 @@
     https://code.google.com/p/yahoo-finance-managed/wiki/CSVAPI
 
     Updates:
+        Aug 23 2014: Resolve bugs in having space in parm header
         Aug 22 2014: Add in excel to choose propertries from.
                    : Take care of situation where the particular extraction yield 0 results.
         Aug 19 2014: Add in capability to scape all the data set(>50)
@@ -33,6 +34,9 @@
         Splitting list to even chunks
         http://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks-in-python
 
+    Bugs:
+        
+
         
 """
 
@@ -48,9 +52,12 @@ class YFinanceDataExtr(object):
     """
     def __init__(self):
         """ List of url parameters """
+        # Param
         self.target_stocks = ['S58.SI','S68.SI'] ##special character need to be converted
-        ## object for extractor --future construct.
-
+        
+        # for difffernt retrieval, based on the dict available to select the file type
+        # currently have "watcher", "all" where watcher is the selected stocks to watch.
+        self.stock_retrieval_type = 'watcher' 
 
         ## current data .csv file url formation
         #header to match the sequence of the formed url
@@ -72,8 +79,27 @@ class YFinanceDataExtr(object):
         self.cur_quotes_csvfile = r'c:\data\temp\stock_data.csv'
         self.cur_quotes_df = object()
 
+        ## !!!
+        self.cur_quotes_url_list = [] # store of all the url list being query. For debug.
+
         # for debug
         self.store_individual_set_df = []
+
+        # input file path
+        # dict based on the file for different type of retrieval
+        self.retrieval_type_input_file_dict  = {
+                                                "all"    : r'C:\pythonuserfiles\yahoo_finance_data_extract\stocklist.csv',
+                                                "watcher": r''
+                                                }
+
+    
+    ## !!!
+    def set_stock_retrieval_type(self, type ='all'):
+        """ Set the type of stocks retrieval type.mro
+            Kwargs:
+                type (str): default "all"
+        """
+        self.stock_retrieval_type = type
 
     def set_target_stocks_list(self, list_of_stocks):
         """ Set the list of stocks to the self.target_stocks.
@@ -106,7 +132,7 @@ class YFinanceDataExtr(object):
         self.xls_property_data.open_excel_and_process_block_data()
 
         ## form the header
-        self.cur_quotes_parm_headers = [n.encode() for n in self.xls_property_data.data_label_list]
+        self.cur_quotes_parm_headers = [n.encode().strip() for n in self.xls_property_data.data_label_list]
 
         ## form the url str
         start_str = '&f='
@@ -240,9 +266,10 @@ if __name__ == '__main__':
         stock_list = list(stock_list['SYMBOL'])
         #stock_list = ['S58.SI','S68.SI']
         data_ext.get_cur_quotes_fr_list(stock_list)
-        data_ext.temp_full_data_df.to_csv(r'c:\data\full.csv', index = False)
+        data_ext.temp_full_data_df.to_csv(r'c:\data\full_aug30.csv', index = False)
 
     if choice == 2:
+        data_ext = YFinanceDataExtr()
         data_ext.form_url_str()
         
     if choice == 3:
@@ -252,6 +279,30 @@ if __name__ == '__main__':
             counter = counter +1
             print n[n.columns[:4]].head()
             print '---'
+
+    if choice ==4:
+        """Enable filitering
+            First take out those volumne is zero
+
+        """
+        output_df = pandas.read_csv(r'c:\data\full1.csv')
+
+        # volumne zero excluded -- volume exceed 1000
+        modified_df =  output_df[~(output_df['Volume'] == 0)]
+
+        # may have to exclude if price too samll
+
+        #PE more than 10
+        #EPS greater than 0
+        #price critiera
+
+        #ranking and sorting attributes
+
+        #
+
+        #criteria manangement --> need a script for this. can split to three types , one is in between, one is either greater or lower,
+        #use excel table extract
+        # 
 
 ##    ## Specify the stocks to be retrieved. Each url constuct max up to 50 stocks.
 ##    data_ext.target_stocks = ['S58.SI','S68.SI'] #special character need to be converted
