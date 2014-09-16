@@ -6,6 +6,8 @@
     https://code.google.com/p/yahoo-finance-managed/wiki/CSVAPI
 
     Updates:
+        Sep 10 2014: Captialize all headers.
+                   : Include methods to automatically call the different files
         Aug 23 2014: Resolve bugs in having space in parm header
         Aug 22 2014: Add in excel to choose propertries from.
                    : Take care of situation where the particular extraction yield 0 results.
@@ -18,6 +20,9 @@
         filter those zero volumes out and erratic data out.
         Investigate why yield zero results.
         May need to store the url
+
+        Gettting industrial PE
+        http://biz.yahoo.com/p/industries.html
 
     Learning:
         replace all names
@@ -35,9 +40,7 @@
         http://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks-in-python
 
     Bugs:
-        
-
-        
+                
 """
 
 import os, re, sys, time, datetime, copy
@@ -53,7 +56,10 @@ class YFinanceDataExtr(object):
     def __init__(self):
         """ List of url parameters """
         # Param
+        ## self.target_stocks use mainly for a few stocks.
+        ## it also use when setting the 45 or 50 stocks at a time to url
         self.target_stocks = ['S58.SI','S68.SI'] ##special character need to be converted
+        self.full_stocklist_to_retrieve = [] #full range fo stocks
         
         # for difffernt retrieval, based on the dict available to select the file type
         # currently have "watcher", "all" where watcher is the selected stocks to watch.
@@ -89,11 +95,9 @@ class YFinanceDataExtr(object):
         # dict based on the file for different type of retrieval
         self.retrieval_type_input_file_dict  = {
                                                 "all"    : r'C:\pythonuserfiles\yahoo_finance_data_extract\stocklist.csv',
-                                                "watcher": r''
+                                                "watcher": r'c:\data\full_sep11.csv'
                                                 }
-
-    
-    ## !!!
+        
     def set_stock_retrieval_type(self, type ='all'):
         """ Set the type of stocks retrieval type.mro
             Kwargs:
@@ -101,8 +105,23 @@ class YFinanceDataExtr(object):
         """
         self.stock_retrieval_type = type
 
+    def load_stock_symbol_fr_file(self):
+        """ Load the stock symbol info based on the file selected from the set_stock_retrieval_type.
+            The file must have particular column: SYMBOL.
+        """
+        stock_list = pandas.read_csv(self.retrieval_type_input_file_dict[self.stock_retrieval_type])
+        stock_list = list(stock_list['SYMBOL'])
+        self.set_full_stocklist_to_retrieve(stock_list)
+
+    def set_full_stocklist_to_retrieve(self, list_of_stocks):
+        """ Set all target list of stocks that need to retrieve to the self.full_stocklist_to_retrieve. 
+            Args:
+                list_of_stocks (list): full list of stocks to set
+        """
+        self.full_stocklist_to_retrieve = list_of_stocks
+
     def set_target_stocks_list(self, list_of_stocks):
-        """ Set the list of stocks to the self.target_stocks.
+        """ Set the target list of stocks to the self.target_stocks. Not the full list.
             Args:
                 list_of_stocks (list): target list of stocks to set
         """
@@ -155,10 +174,8 @@ class YFinanceDataExtr(object):
     def form_url_str(self, type = 'cur_quotes'):
         """ Form the url str necessary to get the .csv file.close
             May need to segregate into the various types.
-
             Args:
                 type (str): Retrieval type.
-
         """
         if type == 'cur_quotes':
             self.form_cur_quotes_stock_url_str()
@@ -174,7 +191,6 @@ class YFinanceDataExtr(object):
              
     def downloading_csv(self, url_address):
         """ Download the csv information from the url_address given.
-
         """
         url = URL(url_address)
         f = open(self.cur_quotes_csvfile, 'wb') # save as test.gif
@@ -186,7 +202,7 @@ class YFinanceDataExtr(object):
             Achieved by reading the .csv file and retrieving the results using pandas.
         """
         self.cur_quotes_df = pandas.read_csv(self.cur_quotes_csvfile,header =None)
-        self.cur_quotes_df.rename(columns={org: change for org, change\
+        self.cur_quotes_df.rename(columns={org: change.upper() for org, change\
                                            in zip(self.cur_quotes_df.columns,self.cur_quotes_parm_headers)},\
                                               inplace=True)
 
@@ -199,14 +215,14 @@ class YFinanceDataExtr(object):
         self.downloading_csv(self.cur_quotes_full_url)
         self.cur_quotes_create_dataframe()
 
-    def get_cur_quotes_fr_list(self, full_list):
+    def get_cur_quotes_fr_list(self):
         """ Cater for situation where there is large list.
             Limit for the url is 50. Take care where list exceed 50.
             For safeguard, clip limit to 49.
         """
         ## full list with special characters take care
-        full_list = self.replace_special_characters_in_list(full_list)
-        chunk_of_list = self.break_list_to_sub_list(full_list)
+        full_list = self.replace_special_characters_in_list(self.full_stocklist_to_retrieve)
+        chunk_of_list = self.break_list_to_sub_list(self.full_stocklist_to_retrieve)
         self.temp_full_data_df = None
         for n in chunk_of_list:
             # set the small chunk of list
@@ -230,7 +246,6 @@ class YFinanceDataExtr(object):
                 chunk_size (int): length of each chunk. Max up to 50.
             Return
                 (list): list of list.
-
         """
         if chunk_size < 1:
             chunk_size = 1
@@ -245,7 +260,6 @@ class YFinanceDataExtr(object):
                 full_list (list): list of symbol
             Returns:
                 (list): modified list with special characters replaced.
-
         """
         return [n.replace(':','%3A') for n in full_list]
         
@@ -254,19 +268,19 @@ if __name__ == '__main__':
     
     print "start processing"
     
-
     choice = 1
 
     if choice == 1:
         data_ext = YFinanceDataExtr()
-        ## read  data from .csv file -- full list of stocks
-        csv_fname = r'C:\pythonuserfiles\yahoo_finance_data_extract\stocklist.csv'
-        stock_list = pandas.read_csv(csv_fname)
-        # convert from pandas object to list
-        stock_list = list(stock_list['SYMBOL'])
-        #stock_list = ['S58.SI','S68.SI']
-        data_ext.get_cur_quotes_fr_list(stock_list)
-        data_ext.temp_full_data_df.to_csv(r'c:\data\full_aug30.csv', index = False)
+
+        ## running all stock information
+        data_ext.set_stock_retrieval_type('watcher')
+        data_ext.load_stock_symbol_fr_file()
+        
+        ##comment below if running the full list.
+        #data_ext.set_full_stocklist_to_retrieve(['S58.SI','S68.SI'])
+        data_ext.get_cur_quotes_fr_list()
+        data_ext.temp_full_data_df.to_csv(r'c:\data\full_sep12.csv', index = False)
 
     if choice == 2:
         data_ext = YFinanceDataExtr()
@@ -280,29 +294,6 @@ if __name__ == '__main__':
             print n[n.columns[:4]].head()
             print '---'
 
-    if choice ==4:
-        """Enable filitering
-            First take out those volumne is zero
-
-        """
-        output_df = pandas.read_csv(r'c:\data\full1.csv')
-
-        # volumne zero excluded -- volume exceed 1000
-        modified_df =  output_df[~(output_df['Volume'] == 0)]
-
-        # may have to exclude if price too samll
-
-        #PE more than 10
-        #EPS greater than 0
-        #price critiera
-
-        #ranking and sorting attributes
-
-        #
-
-        #criteria manangement --> need a script for this. can split to three types , one is in between, one is either greater or lower,
-        #use excel table extract
-        # 
 
 ##    ## Specify the stocks to be retrieved. Each url constuct max up to 50 stocks.
 ##    data_ext.target_stocks = ['S58.SI','S68.SI'] #special character need to be converted

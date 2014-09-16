@@ -19,6 +19,8 @@ Nicer way to initialzie a dcit
 ##handle time out and also when the quey limt
 
 Updates:
+    Sep 01 2014: Modified the header value function. Update on more data on 50 and 200 days movin avg
+    Aug 30 2014: Add in key statistics
     Aug 29 2014: Add in industry
     Aug 28 2014: Open up the analyst opinion to include the number of broker.
 
@@ -35,6 +37,13 @@ TODO:
     Debt to equity ratio
     cash flow
     need to get the financial out first
+        get 200 days and 50 days moving avg
+    See if can go down to lowest set for data
+    How to parse indvidual parameters
+
+DEBUG:
+    Analyst ranking is not present --> take note when doing combinng
+    To check if better way to do combining
 
 """
 import os, re, sys, time, datetime, copy
@@ -66,7 +75,7 @@ class YFinanceDirectScrape(object):
                                 'Company_desc': 'http://finance.yahoo.com/q?',
                                 'analyst_opinion':'http://finance.yahoo.com/q/ao?',
                                 'industry':'https://sg.finance.yahoo.com/q/in?',
-                                'key_stats': 'https://sg.finance.yahoo.com/q/ks?'
+                                'key_stats': 'https://sg.finance.yahoo.com/q/ks?',
                               }
 
         ## selector for dom objects mainly for parsing the results.
@@ -100,12 +109,6 @@ class YFinanceDirectScrape(object):
 
         ## fault detection
         self.url_query_timeout = 0 # for time out issue when query.
-        
-
-        # the different tag element for parsing.
-        ## parsing might required different method.
-
-        ## might also set the different columns
 
     def set_stock_to_retrieve(self, stock_sym):
         """ Set the stock symbol required for retrieval.
@@ -261,7 +264,7 @@ class YFinanceDirectScrape(object):
         # process the header --> need 5 header
         dom_object = self.tag_element_results(self.dom_object, self.css_selector_dict[self.param_selector][0] )
         for n in dom_object[parse_start:parse_end]:
-            self.header_list.append(str(n.content).strip(':'))
+            self.header_list.append(str(n.children[0]).strip(':'))
         #value
         dom_object = self.tag_element_results(self.dom_object, self.css_selector_dict[self.param_selector][1] )
         for n in dom_object[parse_start:parse_end]:
@@ -292,6 +295,7 @@ class YFinanceDirectScrape(object):
 
         self.parse_one_level_header_value_set(11, 19)
         self.parse_one_level_header_value_set(21,31)
+        self.parse_one_level_header_value_set(36,38)
 
     def clear_all_temp_store_data(self):
         """ Clear all the temporary store data for processing and clear fault.
@@ -314,6 +318,7 @@ class YFinanceDirectScrape(object):
                 self.all_individual_df_list.append(self.individual_stock_df)
                 if self.all_stock_df is None:
                     self.all_stock_df = self.individual_stock_df
+                    self.permanent_header_list = copy.copy(self.header_list)
                 else:
                     if len(self.individual_stock_df.columns) > len(self.all_stock_df.columns):
                         self.all_stock_df = self.individual_stock_df.append(self.all_stock_df)
@@ -322,7 +327,7 @@ class YFinanceDirectScrape(object):
                         self.all_stock_df = self.all_stock_df.append(self.individual_stock_df)
 
         ## set the object to file
-        self.all_stock_df = ss.all_stock_df.reindex(columns = self.permanent_header_list)
+        self.all_stock_df = self.all_stock_df.reindex(columns = self.permanent_header_list)
         self.all_stock_df.to_csv(r'c:\data\extrainfo.csv', index=False)
 
 
@@ -343,6 +348,7 @@ if __name__ == '__main__':
 ##            print ss.header_list, ss.value_list
             ss.parse_all_parameters()
             print ss.individual_stock_df
+            ss.individual_stock_df.to_csv(r'c:\data\check.csv')
 
     if choice  == 3:
         
@@ -352,6 +358,9 @@ if __name__ == '__main__':
         #get the yeear
         w= dom_object('td[class="yfnc_tabledata1"]')
         w= dom_object('td[class="yfnc_tablehead1]')
+        for n in range(len(w)):
+            print n
+            print w[n].content
 
     if choice == 2:
         yf = YFinanceDirectScrape()
@@ -372,14 +381,31 @@ if __name__ == '__main__':
 
         ## read  data from .csv file -- full list of stocks
         csv_fname = r'C:\pythonuserfiles\yahoo_finance_data_extract\stocklist.csv'
+        csv_fname = r'C:\data\potential_data.csv'
         stock_list = pandas.read_csv(csv_fname)
         # convert from pandas object to list
-        stock_list = list(stock_list['SYMBOL'])
+        #stock_list = list(stock_list['SYMBOL'])
+        stock_list = list(stock_list['Symbol'])
         #stock_list =  stock_list[:10]
 
         ss = YFinanceDirectScrape()
         ss.set_multiple_stock_list(stock_list)
         ss.obtain_multiple_stock_data()
+
+    if choice == 5:
+        ss.all_stock_df = None        
+        for n in ss.all_individual_df_list:
+            ss.individual_stock_df = n
+            
+            if ss.all_stock_df is None:
+                ss.all_stock_df = ss.individual_stock_df
+                ss.permanent_header_list = copy.copy(ss.header_list)
+            else:
+                if len(ss.individual_stock_df.columns) > len(ss.all_stock_df.columns):
+                    ss.all_stock_df = ss.individual_stock_df.append(ss.all_stock_df)
+                    ss.permanent_header_list = copy.copy(ss.header_list)
+                else:
+                    ss.all_stock_df = ss.all_stock_df.append(ss.individual_stock_df)
             
 
 
