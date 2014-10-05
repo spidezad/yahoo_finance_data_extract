@@ -6,6 +6,7 @@
     https://code.google.com/p/yahoo-finance-managed/wiki/CSVAPI
 
     Updates:
+        Oct 05 2014: Add in function to add addtional str to stock symbol eg (.SI)
         Sep 10 2014: Captialize all headers.
                    : Include methods to automatically call the different files
         Aug 23 2014: Resolve bugs in having space in parm header
@@ -15,14 +16,16 @@
         Aug 18 2014: Add in functions for multiple chunks procssing.
 
     TODO:
-        get the list of data from table extract???
-        use table extract fr excel
         filter those zero volumes out and erratic data out.
         Investigate why yield zero results.
         May need to store the url
 
         Gettting industrial PE
         http://biz.yahoo.com/p/industries.html
+
+        capabiitty to define the dict.
+        May also need to prepend the .SI
+
 
     Learning:
         replace all names
@@ -73,6 +76,7 @@ class YFinanceDataExtr(object):
         # URL forming 
         self.cur_quotes_start_url = "http://download.finance.yahoo.com/d/quotes.csv?s="
         self.cur_quotes_stock_portion_url = ''
+        self.cur_quotes_stock_portion_additional_url = '.SI'# for adding additonal str to the stock url.
         self.cur_quotes_property_portion_url = ''
         self.cur_quotes_end_url = "&e=.csv"
         self.cur_quotes_full_url = ''
@@ -95,9 +99,19 @@ class YFinanceDataExtr(object):
         # dict based on the file for different type of retrieval
         self.retrieval_type_input_file_dict  = {
                                                 "all"    : r'C:\pythonuserfiles\yahoo_finance_data_extract\stocklist.csv',
-                                                "watcher": r'c:\data\full_sep11.csv'
+                                                "watcher": r'c:\data\google_stock_screener.csv'
                                                 }
+
+    def set_stock_sym_append_str(self, append_str):
+        """ Set additional append str to stock symbol when forming stock url.
+            Set to sel.cur_quotes_stock_portion_additional_url.
+            Mainly to set the '.SI' for singapore stocks.
+            Args:
+                append_str (str): additional str to append to stock symbol.
         
+        """
+        self.cur_quotes_stock_portion_additional_url = append_str
+
     def set_stock_retrieval_type(self, type ='all'):
         """ Set the type of stocks retrieval type.mro
             Kwargs:
@@ -132,7 +146,8 @@ class YFinanceDataExtr(object):
         """
         self.cur_quotes_stock_portion_url = ''
         for n in self.target_stocks:
-            self.cur_quotes_stock_portion_url = self.cur_quotes_stock_portion_url + n + ','
+            self.cur_quotes_stock_portion_url = self.cur_quotes_stock_portion_url + n +\
+                                                self.cur_quotes_stock_portion_additional_url  + ','
             
         self.cur_quotes_stock_portion_url =self.cur_quotes_stock_portion_url[:-1]
 

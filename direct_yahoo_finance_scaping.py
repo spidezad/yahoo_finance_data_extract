@@ -19,6 +19,8 @@ Nicer way to initialzie a dcit
 ##handle time out and also when the quey limt
 
 Updates:
+    Oct 04 2014: Have additional str to append to stock symbol (.SI)
+    Oct 02 2014: Convert the Symbol to capital letters
     Sep 01 2014: Modified the header value function. Update on more data on 50 and 200 days movin avg
     Aug 30 2014: Add in key statistics
     Aug 29 2014: Add in industry
@@ -37,9 +39,12 @@ TODO:
     Debt to equity ratio
     cash flow
     need to get the financial out first
-        get 200 days and 50 days moving avg
     See if can go down to lowest set for data
     How to parse indvidual parameters
+    Print format be more nicer.
+    Add in .SI to make the search more easy to get.
+    (Append additional data to the stock) --> have post prepend option
+    print error if timeout = 1
 
 DEBUG:
     Analyst ranking is not present --> take note when doing combinng
@@ -58,11 +63,16 @@ class YFinanceDirectScrape(object):
     def __init__(self):
 
         ## general param
-        self.all_stock_sym_list = list() # for all stock input.
+        self.all_stock_sym_list = list()    # for all stock input.
         self.individual_stock_sym   = ''
+        ## extra parameters to append to the stock symbol.
+        self.stock_sym_append_str = '.SI'   # default ".SI"
+        
+        ## printing option -- for printing additional information
+        self.print_url_str = 0              # 1- will print url str to be query
         
         ## url forming -- for individual stock
-        self.start_url              = '' # will be preloaded with different start url.
+        self.start_url              = ''    # will be preloaded with different start url.
         self.individual_stock_url   = ''
         self.full_url_str           = ''
 
@@ -106,20 +116,31 @@ class YFinanceDirectScrape(object):
         self.all_individual_df_list = list()
 
         self.permanent_header_list = [] # give the header list that will be recorded in csv
+                                        # can formed while setting the command??
 
         ## fault detection
         self.url_query_timeout = 0 # for time out issue when query.
 
+    def set_stock_sym_append_str(self, append_str):
+        """ Set additional append str to stock symbol.
+            Set to sel.stock_sym_append_str
+            Args:
+                append_str (str): additional str to append to stock symbol.
+        
+        """
+        self.stock_sym_append_str = append_str
+
     def set_stock_to_retrieve(self, stock_sym):
         """ Set the stock symbol required for retrieval.
+            Will append the self.stock_sym_append_str to the stock symbol
             Args:
                 stock_sym (str): Input the stock symbol.
         """
         assert type(stock_sym) == str
-        self.individual_stock_sym = stock_sym
+        self.individual_stock_sym = stock_sym + self.stock_sym_append_str
 
     def set_multiple_stock_list(self, stocklist):
-        """ Set the multiple stock list. Set to self.all_stock_sym_list
+        """ Set the multiple stock list. Set to self.all_stock_sym_list.
             Args:
                 stocklist (list): list of stocks symbol.
         """
@@ -131,7 +152,7 @@ class YFinanceDirectScrape(object):
         """
         assert self.individual_stock_sym is not None
         fixed_portion = 's='
-        self.individual_stock_url  = fixed_portion + self.individual_stock_sym
+        self.individual_stock_url  = fixed_portion + self.individual_stock_sym 
 
     def get_list_of_param_selector_avaliable(self):
         """ Print out the list of param_selector avaliable that make it easier to set.
@@ -181,6 +202,19 @@ class YFinanceDirectScrape(object):
         except:
             print 'Problem retrieving data for this url: ', self.full_url_str
             self.url_query_timeout = 1
+
+    def __dom_object_isempty(self, dom_object):
+        """ Check if dom object is empty. Check if the URL return any useful information.
+            Args:
+                dom_object (dom object): DOM object from the URL
+            Returns:
+                (bool): True if empty.
+        """
+        if len(dom_object) == 0:
+            print 'Nothing being parsed'
+            return True
+        else:
+            return False
         
     def tag_element_results(self, dom_obj, tag_expr):
         """ Take in expression for dom tag expression.
@@ -201,15 +235,15 @@ class YFinanceDirectScrape(object):
 
         """
         for n in self.start_url_dict.keys():
-            print 'Parsing ', n
+            print 'Parsing parameters: ', n
             self.set_param_selector(n)
             self.form_full_url()
-            print self.full_url_str
+            if self.print_url_str: print self.full_url_str
             self.parse_method_dict[n]()
             if self.url_query_timeout: return 
 
         ## set the symbol to the list and create to dataframe.
-        self.header_list.insert(0, 'Symbol')
+        self.header_list.insert(0, 'SYMBOL')
         self.value_list.insert(0, self.individual_stock_sym)# need to convert to columns
 
         ## create the stock df here.
@@ -230,8 +264,13 @@ class YFinanceDirectScrape(object):
         self.create_dom_object()
         if self.url_query_timeout: return 
         dom_object = self.tag_element_results(self.dom_object, self.css_selector_dict[self.param_selector] )
-        self.value_list.append(str(dom_object[0][0]))
-        self.header_list.append('company_desc')
+        if self.__dom_object_isempty(dom_object):
+            return
+        try:
+            self.value_list.append(str(dom_object[0][0]))
+            self.header_list.append('company_desc')
+        except:
+            print "problem with company desc, ", self.individual_stock_sym
 
     def parse_analyst_opinion(self):
         """ Method to parse the analyst info.
@@ -249,6 +288,7 @@ class YFinanceDirectScrape(object):
     def parse_one_level_header_value_set(self, parse_start, parse_end):
         """ Use for parsing general format of header value data.
             Condition is that both header and value need to be scape.
+            If header is missing, str away return without getting the values.
             The dom object that determine the parsing is of below form:
             dom_object[parse_start:parse_end)]
             
@@ -259,10 +299,14 @@ class YFinanceDirectScrape(object):
                 parse_start (int): start of the total list to be parsed.
                 parse_end (int): end of the total list to be parsed.
 
+            Why return object??
+
         """
         
         # process the header --> need 5 header
         dom_object = self.tag_element_results(self.dom_object, self.css_selector_dict[self.param_selector][0] )
+        if self.__dom_object_isempty(dom_object):
+            return
         for n in dom_object[parse_start:parse_end]:
             self.header_list.append(str(n.children[0]).strip(':'))
         #value
@@ -293,7 +337,7 @@ class YFinanceDirectScrape(object):
         self.create_dom_object()
         if self.url_query_timeout: return
 
-        self.parse_one_level_header_value_set(11, 19)
+        self.parse_one_level_header_value_set(11,19)
         self.parse_one_level_header_value_set(21,31)
         self.parse_one_level_header_value_set(36,38)
 
@@ -307,13 +351,16 @@ class YFinanceDirectScrape(object):
 
     def obtain_multiple_stock_data(self):
         """ Obtain multiple stocks data.
+            Temporary do not get the 
 
         """
         for n in self.all_stock_sym_list:
             self.clear_all_temp_store_data()
-            print n
+            print 'Getting info for stock: ', n
             self.set_stock_to_retrieve(n)
             self.parse_all_parameters()
+
+            ## joining
             if not self.url_query_timeout:  
                 self.all_individual_df_list.append(self.individual_stock_df)
                 if self.all_stock_df is None:
@@ -322,9 +369,13 @@ class YFinanceDirectScrape(object):
                 else:
                     if len(self.individual_stock_df.columns) > len(self.all_stock_df.columns):
                         self.all_stock_df = self.individual_stock_df.append(self.all_stock_df)
+                        ## may have problem with the header list
                         self.permanent_header_list = copy.copy(self.header_list)
                     else:
                         self.all_stock_df = self.all_stock_df.append(self.individual_stock_df)
+
+            print '*'* 18
+            print
 
         ## set the object to file
         self.all_stock_df = self.all_stock_df.reindex(columns = self.permanent_header_list)
@@ -334,11 +385,12 @@ class YFinanceDirectScrape(object):
 
 if __name__ == '__main__':
     print
-    choice = 1
+    choice = 4
 
     if choice == 1:
             ss = YFinanceDirectScrape()
-            ss.quick_set_symbol_and_param_type('S58.SI', 'analyst_opinion')
+            ss.quick_set_symbol_and_param_type('CC3', 'analyst_opinion')
+##            ss.quick_set_symbol_and_param_type('S58.SI', 'analyst_opinion')
             ss.form_full_url()
 ##            print
 ##            print ss.get_list_of_param_selector_avaliable()
@@ -382,15 +434,18 @@ if __name__ == '__main__':
         ## read  data from .csv file -- full list of stocks
         csv_fname = r'C:\pythonuserfiles\yahoo_finance_data_extract\stocklist.csv'
         csv_fname = r'C:\data\potential_data.csv'
-        stock_list = pandas.read_csv(csv_fname)
+        #stock_list = pandas.read_csv(csv_fname)
         # convert from pandas object to list
         #stock_list = list(stock_list['SYMBOL'])
-        stock_list = list(stock_list['Symbol'])
+        #stock_list = list(stock_list['Symbol'])
+        stock_list = ['S58','C0R3']
+        #stock_list = ['S58.SI']
         #stock_list =  stock_list[:10]
 
         ss = YFinanceDirectScrape()
         ss.set_multiple_stock_list(stock_list)
         ss.obtain_multiple_stock_data()
+        print ss.all_stock_df
 
     if choice == 5:
         ss.all_stock_df = None        
@@ -406,6 +461,13 @@ if __name__ == '__main__':
                     ss.permanent_header_list = copy.copy(ss.header_list)
                 else:
                     ss.all_stock_df = ss.all_stock_df.append(ss.individual_stock_df)
+
+    if choice == 6:
+        """individual parsing"""
+        ss = YFinanceDirectScrape()
+        ss.quick_set_symbol_and_param_type('CC3', 'analyst_opinion')
+##            ss.quick_set_symbol_and_param_type('S58.SI', 'analyst_opinion')
+        ss.form_full_url()
             
 
 
