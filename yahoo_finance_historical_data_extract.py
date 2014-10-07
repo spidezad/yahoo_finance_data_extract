@@ -9,6 +9,8 @@
     https://code.google.com/p/yahoo-finance-managed/wiki/CSVAPI
 
     Updates:
+        Oct 08 2014: Able to save temp file and individual data (option)
+                   : Able to save all data dataframe for further processing.
         Sep 16 2014: Enable multiple stocks data extract
 
     TODO:
@@ -16,6 +18,10 @@
         Do dates manipulation\
         Have the get divident
         how to convert the date time in pandas
+        may need to take care of sat and sun
+        pull the last 5 days to see if continuous droppingh
+        get trend information 
+
 
     Learning:
         pandas get moving average
@@ -25,7 +31,7 @@
     
 """
 
-import os, re, sys, time, datetime, copy
+import os, re, sys, time, datetime, copy, shutil
 import pandas
 from pattern.web import URL, extension
 
@@ -52,14 +58,14 @@ class YFHistDataExtr(object):
         self.hist_quotes_full_url = ''
 
         # Output storage
-        self.hist_quotes_csvfile_path = r'c:\data'
         self.hist_quotes_df = object()
+        self.enable_save_raw_file = 1 # 1 - will save all the indivdual raw data
+        self.hist_quotes_csvfile_path = r'c:\data' # for storing of all stock raw data
+        self.tempfile_sav_location = r'c:\data\temp\temp_hist_data_save.csv'
+        self.all_stock_df = []
 
-        ## !!!
-        self.hist_quotes_url_list = [] # store of all the url list being query. For debug.
+        # Trend processing.
 
-        # for debug
-        self.store_individual_set_df = []
 
     def set_stock_to_retrieve(self, stock_sym):
         """ Set the stock symbol required for retrieval.
@@ -134,21 +140,26 @@ class YFHistDataExtr(object):
         """ Download the csv information for particular stock.
         """
         url = URL(self.hist_quotes_full_url)
-        full_file_name_to_save = os.path.join(self.hist_quotes_csvfile_path,'hist_stock_price_'+ self.individual_stock_sym+ '.csv')
-        f = open(full_file_name_to_save, 'wb') # save as test.gif
+        f = open(self.tempfile_sav_location, 'wb') # save as test.gif
         f.write(url.download())
         f.close()
 
-    ## !!! not working
-    def hist_quotes_create_dataframe(self):
+        if self.enable_save_raw_file:
+            sav_filename = os.path.join(self.hist_quotes_csvfile_path,'hist_stock_price_'+ self.individual_stock_sym+ '.csv')
+            shutil.copyfile(self.tempfile_sav_location,sav_filename )
+
+    def save_stockdata_to_df(self):
         """ Create dataframe for the results.
             Achieved by reading the .csv file and retrieving the results using pandas.
         """
-        self.hist_quotes_df = pandas.read_csv(self.hist_quotes_csvfile,header =None)
-        self.hist_quotes_df.rename(columns={org: change.upper() for org, change\
-                                           in zip(self.hist_quotes_df.columns,self.hist_quotes_parm_headers)},\
-                                              inplace=True)
+        self.hist_quotes_individual_df = pandas.read_csv(self.tempfile_sav_location)
+        self.hist_quotes_individual_df['SYMBOL'] = self.individual_stock_sym
 
+        if len(self.all_stock_df) == 0:
+            self.all_stock_df = self.hist_quotes_individual_df
+        else:
+            self.all_stock_df = self.all_stock_df.append(self.hist_quotes_individual_df)
+        
     def get_hist_data_of_all_target_stocks(self):
         """ Combine the cur quotes function.
             Formed the url, download the csv, put in the header. Have a dataframe object.
@@ -159,7 +170,7 @@ class YFHistDataExtr(object):
             self.form_url_str()
             print self.hist_quotes_full_url
             self.downloading_csv()
-
+            self.save_stockdata_to_df()
 
 
 if __name__ == '__main__':
@@ -170,7 +181,7 @@ if __name__ == '__main__':
 
     if choice == 1:
         data_ext = YFHistDataExtr()
-        data_ext.set_interval_to_retrieve(200)
+        data_ext.set_interval_to_retrieve(10)
         data_ext.set_multiple_stock_list(['OV8.SI','G13.SI'])
         #data_ext.set_stock_to_retrieve('OV8.SI')
         data_ext.get_hist_data_of_all_target_stocks()
