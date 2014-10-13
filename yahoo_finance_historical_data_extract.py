@@ -9,6 +9,10 @@
     https://code.google.com/p/yahoo-finance-managed/wiki/CSVAPI
 
     Updates:
+        Oct 11 2014: Resolve bug where there is less than 3 entites for day trends.
+                   : Able to switch on and off printint.
+                   : Resolve cases where there is problem with url download.
+        Oct 09 2014: Add in monitor 3 days trends.
         Oct 08 2014: Able to save temp file and individual data (option)
                    : Able to save all data dataframe for further processing.
         Sep 16 2014: Enable multiple stocks data extract
@@ -16,23 +20,37 @@
     TODO:
         Get today dates
         Do dates manipulation\
-        Have the get divident
         how to convert the date time in pandas
-        may need to take care of sat and sun
-        pull the last 5 days to see if continuous droppingh
-        get trend information 
+        able to intrepret the trends such as falling>
+        if need the linear regression, need to convert date
+        Put in the 3 days data???
+        detect large jump in volumen
+        use dot to represent completion of one stock --> how to print all at one line??
 
 
     Learning:
         pandas get moving average
         http://www.bearrelroll.com/2013/07/python-pandas-moving-average/
+
+        take top n data for each group --pandas
+        http://stackoverflow.com/questions/20069009/pandas-good-approach-to-get-top-n-records-within-each-group
+
+        pandas and financial data analysis
+        http://nbviewer.ipython.org/github/twiecki/financial-analysis-python-tutorial/blob/master/2.%20Pandas%20replication%20of%20Google%20Trends%20paper.ipynb
+
+        pandas tutorial
+        http://nbviewer.ipython.org/gist/fonnesbeck/5850413
+
+        scipy and pandas regression
+        http://stackoverflow.com/questions/14775068/how-to-apply-linregress-in-pandas-bygroup
+        http://stackoverflow.com/questions/19991445/run-an-ols-regression-with-pandas-data-frame
         
 
-    
 """
 
 import os, re, sys, time, datetime, copy, shutil
 import pandas
+from scipy.stats import linregress
 from pattern.web import URL, extension
 
  
@@ -48,7 +66,7 @@ class YFHistDataExtr(object):
         ## it also use when setting the 45 or 50 stocks at a time to url
         self.target_stocks = ['S58.SI','S68.SI'] ##special character need to be converted
         self.individual_stock_sym = '' #full range fo stocks
-        self.date_interval = 30 # the number of dates to retrieve, temp  default to 1 day per interval 
+        self.date_interval = 10 # the number of dates to retrieve, temp  default to 1 day per interval 
                                                 
         # URL forming 
         self.hist_quotes_start_url = "http://ichart.yahoo.com/table.csv?s="
@@ -60,11 +78,21 @@ class YFHistDataExtr(object):
         # Output storage
         self.hist_quotes_df = object()
         self.enable_save_raw_file = 1 # 1 - will save all the indivdual raw data
-        self.hist_quotes_csvfile_path = r'c:\data' # for storing of all stock raw data
+        self.hist_quotes_csvfile_path = r'c:\data\raw_stock_data' # for storing of all stock raw data
         self.tempfile_sav_location = r'c:\data\temp\temp_hist_data_save.csv'
         self.all_stock_df = []
 
         # Trend processing.
+        self.processed_data_df = object()
+        self.processed_interval = 3 #set the period in which to process the post processing. For the filter most recert stock data.
+        self.price_trend_data_by_stock = object() # provide the information. one line per stock
+        ## take the adjusted close of the data
+
+        # Print options
+        self.print_current_processed_stock = 0 # if 1 -enable printing.
+
+        # Fault check
+        self.download_fault = 0
 
 
     def set_stock_to_retrieve(self, stock_sym):
@@ -139,14 +167,21 @@ class YFHistDataExtr(object):
     def downloading_csv(self):
         """ Download the csv information for particular stock.
         """
+        self.download_fault = 0
+
         url = URL(self.hist_quotes_full_url)
         f = open(self.tempfile_sav_location, 'wb') # save as test.gif
-        f.write(url.download())
+        try:
+            f.write(url.download())#if have problem skip
+        except:
+            print 'Problem with processing this data: ', self.hist_quotes_full_url
+            self.download_fault =1
         f.close()
 
-        if self.enable_save_raw_file:
-            sav_filename = os.path.join(self.hist_quotes_csvfile_path,'hist_stock_price_'+ self.individual_stock_sym+ '.csv')
-            shutil.copyfile(self.tempfile_sav_location,sav_filename )
+        if not self.download_fault:
+            if self.enable_save_raw_file:
+                sav_filename = os.path.join(self.hist_quotes_csvfile_path,'hist_stock_price_'+ self.individual_stock_sym+ '.csv')
+                shutil.copyfile(self.tempfile_sav_location,sav_filename )
 
     def save_stockdata_to_df(self):
         """ Create dataframe for the results.
@@ -165,12 +200,65 @@ class YFHistDataExtr(object):
             Formed the url, download the csv, put in the header. Have a dataframe object.
         """
         for stock in self.all_stock_sym_list:
-            print 'Processing stock: ', stock
+            if self.print_current_processed_stock: print 'Processing stock: ', stock
             self.set_stock_to_retrieve(stock)
             self.form_url_str()
-            print self.hist_quotes_full_url
+            if self.print_current_processed_stock: print self.hist_quotes_full_url
             self.downloading_csv()
-            self.save_stockdata_to_df()
+            if not self.download_fault:
+                self.save_stockdata_to_df()
+
+    ## methods for postprocessing data set
+    def removed_zero_vol_fr_dataset(self):
+        """ Remove any stocks data that have volume = 0. Meaning no transaction during that day
+            Set to self.processed_data_df. 
+        """
+        self.processed_data_df = self.all_stock_df[~(self.all_stock_df['Volume'] == 0)]
+
+    def filter_most_recent_stock_data(self):
+        """ Filter the most recent stock info. Target based on 3 days. (self.processed_interval)
+            Number of days must be less than date_interval (also take note no trades on holiday and weekend.
+            Set to self.processed_data_df. Also modified from self.processed_data_df
+
+        """
+        assert self.processed_interval <= self.date_interval
+        self.processed_data_df  = self.processed_data_df.groupby("SYMBOL").head(self.processed_interval)
+
+    def stock_with_at_least_3_entries(self, raw_data_df):
+        """ Return list of Symbol that has at least 3 entries (for 3 days trends).
+            Args:
+                raw_data_df (Dataframe object): containing all the stocks raw data.
+        """
+        grouped_data = raw_data_df.groupby('SYMBOL').count()
+        return list(grouped_data[grouped_data['Adj Close'] ==3].reset_index()['SYMBOL'])
+
+    def get_trend_of_last_3_days(self):
+        """ Get the trends based on each symbol whether it is constantly falling or rising.
+
+        """
+        self.processed_data_df = self.processed_data_df[self.processed_data_df['SYMBOL'].isin(self.stock_with_at_least_3_entries(self.processed_data_df))]
+        grouped_symbol = self.processed_data_df.groupby("SYMBOL")
+        falling_data=  (grouped_symbol.nth(2)['Adj Close']>= grouped_symbol.nth(1)['Adj Close']) &\
+                        (grouped_symbol.nth(1)['Adj Close'] >= grouped_symbol.nth(0)['Adj Close']) &\
+                         (~(grouped_symbol.nth(2)['Adj Close'] == grouped_symbol.nth(0)['Adj Close'])) #check flat
+
+        falling_df = falling_data.to_frame().rename(columns = {'Adj Close':'Trend_3_days_drop'}).reset_index()
+
+        rising_data =  (grouped_symbol.nth(0)['Adj Close']>= grouped_symbol.nth(1)['Adj Close']) &\
+                        (grouped_symbol.nth(1)['Adj Close'] >= grouped_symbol.nth(2)['Adj Close']) &\
+                        (~(grouped_symbol.nth(2)['Adj Close'] == grouped_symbol.nth(0)['Adj Close'])) #check flat
+        rising_df = rising_data.to_frame().rename(columns = {'Adj Close':'Trend_3_days_rise'}).reset_index()
+        
+        self.price_trend_data_by_stock = pandas.merge(falling_df, rising_df, on = 'SYMBOL' )
+
+    def get_trend_data(self):
+        """ Consolidated methods to get the trend performance (now 3 working days data)
+
+        """
+        self.get_hist_data_of_all_target_stocks()
+        self.removed_zero_vol_fr_dataset()
+        self.filter_most_recent_stock_data()
+        self.get_trend_of_last_3_days()
 
 
 if __name__ == '__main__':
@@ -182,9 +270,17 @@ if __name__ == '__main__':
     if choice == 1:
         data_ext = YFHistDataExtr()
         data_ext.set_interval_to_retrieve(10)
-        data_ext.set_multiple_stock_list(['OV8.SI','G13.SI'])
+        data_ext.set_multiple_stock_list(['OV8.SI','S58.SI'])
         #data_ext.set_stock_to_retrieve('OV8.SI')
-        data_ext.get_hist_data_of_all_target_stocks()
+        data_ext.get_trend_data()
+        
+        print data_ext.processed_data_df        
+        print data_ext.price_trend_data_by_stock
+
+    if choice == 2:
+        w = data_ext.processed_data_df
+        grouped_symbol = w.groupby("SYMBOL")
+        falling_data=  (grouped_symbol.nth(0)['Adj Close']>= grouped_symbol.nth(1)['Adj Close'])  >= grouped_symbol.nth(2)['Adj Close']
         
     #calculating support and resistance lines
         #need get the moving average --pandas use the rolling mean

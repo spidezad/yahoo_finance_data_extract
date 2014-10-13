@@ -45,6 +45,7 @@ TODO:
     Add in .SI to make the search more easy to get.
     (Append additional data to the stock) --> have post prepend option
     print error if timeout = 1
+    option not to print some of the paramters.
 
 DEBUG:
     Analyst ranking is not present --> take note when doing combinng

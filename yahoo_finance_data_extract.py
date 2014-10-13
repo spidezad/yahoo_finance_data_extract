@@ -15,18 +15,6 @@
         Aug 19 2014: Add in capability to scape all the data set(>50)
         Aug 18 2014: Add in functions for multiple chunks procssing.
 
-    TODO:
-        filter those zero volumes out and erratic data out.
-        Investigate why yield zero results.
-        May need to store the url
-
-        Gettting industrial PE
-        http://biz.yahoo.com/p/industries.html
-
-        capabiitty to define the dict.
-        May also need to prepend the .SI
-
-
     Learning:
         replace all names
         dataset.rename(columns={typo: 'Address' for typo in AddressCol}, inplace=True)
@@ -42,13 +30,24 @@
         Splitting list to even chunks
         http://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks-in-python
 
+    TODO:
+        filter those zero volumes out and erratic data out.
+        Investigate why yield zero results.
+        May need to store the url
+
+        Gettting industrial PE
+        http://biz.yahoo.com/p/industries.html
+        
     Bugs:
+        percentage is represent as str --> to convert to dec.
+        --. or remove all from csv file first??
+        does not seem to update --> refresh cache
                 
 """
 
 import os, re, sys, time, datetime, copy
 import pandas
-from pattern.web import URL, extension
+from pattern.web import URL, extension, cache
 
  
 class YFinanceDataExtr(object):
@@ -207,6 +206,7 @@ class YFinanceDataExtr(object):
     def downloading_csv(self, url_address):
         """ Download the csv information from the url_address given.
         """
+        cache.clear()
         url = URL(url_address)
         f = open(self.cur_quotes_csvfile, 'wb') # save as test.gif
         f.write(url.download())
@@ -295,7 +295,7 @@ if __name__ == '__main__':
         ##comment below if running the full list.
         #data_ext.set_full_stocklist_to_retrieve(['S58.SI','S68.SI'])
         data_ext.get_cur_quotes_fr_list()
-        data_ext.temp_full_data_df.to_csv(r'c:\data\full_sep12.csv', index = False)
+        #data_ext.temp_full_data_df.to_csv(r'c:\data\full_sep12.csv', index = False)
 
     if choice == 2:
         data_ext = YFinanceDataExtr()
