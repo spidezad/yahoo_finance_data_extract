@@ -6,6 +6,8 @@
     https://code.google.com/p/yahoo-finance-managed/wiki/CSVAPI
 
     Updates:
+        Oct 18 2014: Add in rm_percent_symbol_fr_cols to remove % from columns
+        Oct 15 2014: Add in clear cache to prevent persistant data store problem
         Oct 05 2014: Add in function to add addtional str to stock symbol eg (.SI)
         Sep 10 2014: Captialize all headers.
                    : Include methods to automatically call the different files
@@ -31,17 +33,13 @@
         http://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks-in-python
 
     TODO:
-        filter those zero volumes out and erratic data out.
-        Investigate why yield zero results.
         May need to store the url
 
         Gettting industrial PE
         http://biz.yahoo.com/p/industries.html
         
     Bugs:
-        percentage is represent as str --> to convert to dec.
-        --. or remove all from csv file first??
-        does not seem to update --> refresh cache
+
                 
 """
 
@@ -252,6 +250,18 @@ class YFinanceDataExtr(object):
                 else:
                     self.temp_full_data_df = self.temp_full_data_df.append(self.cur_quotes_df)
 
+        ## Remove the % symbol fr self.temp_full_data_df columns
+        self.rm_percent_symbol_fr_cols()
+
+    def rm_percent_symbol_fr_cols(self):
+        """ Remove the % symbol from those columns that have this symbol.
+            Convert the columns to float for later easy filtering.
+            Set to self.temp_full_data_df
+        """
+        col_with_percent = [n for n in self.temp_full_data_df.columns if re.search('PERCENT',n)] 
+        for col in col_with_percent:
+            self.temp_full_data_df[col] = self.temp_full_data_df[col].map(lambda x: float(str(x).rstrip('%')))
+
 
     def break_list_to_sub_list(self, full_list, chunk_size = 45):
         """ Break list into smaller equal chunks specified by chunk_size.
@@ -295,7 +305,7 @@ if __name__ == '__main__':
         ##comment below if running the full list.
         #data_ext.set_full_stocklist_to_retrieve(['S58.SI','S68.SI'])
         data_ext.get_cur_quotes_fr_list()
-        #data_ext.temp_full_data_df.to_csv(r'c:\data\full_sep12.csv', index = False)
+        data_ext.temp_full_data_df.to_csv(r'c:\data\temp\temp_stockdata.csv', index = False)
 
     if choice == 2:
         data_ext = YFinanceDataExtr()
@@ -309,6 +319,22 @@ if __name__ == '__main__':
             print n[n.columns[:4]].head()
             print '---'
 
+    if choice == 4:
+        """ Resolve the percentage problem
+
+            Get columns if it is str attibute or of certain column names percent
+            Remove character based on below
+            http://stackoverflow.com/questions/13682044/pandas-dataframe-remove-unwanted-parts-from-strings-in-a-column
+
+        """
+        f = pandas.read_csv(r'c:\data\temp\temp_stockdata.csv')
+        col_with_percent = [n for n in f.columns if re.search('PERCENT',n)] #may overkill the yield in perent
+        #col_with_percent.remove("TRAILINGANNUALDIVIDENDYIELDINPERCENT")
+        for col in col_with_percent:
+            f[col] = f[col].map(lambda x: float(str(x).rstrip('%')))
+
+
+        
 
 ##    ## Specify the stocks to be retrieved. Each url constuct max up to 50 stocks.
 ##    data_ext.target_stocks = ['S58.SI','S68.SI'] #special character need to be converted

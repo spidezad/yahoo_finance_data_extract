@@ -9,6 +9,7 @@
     https://code.google.com/p/yahoo-finance-managed/wiki/CSVAPI
 
     Updates:
+        Oct 18 2014: Add in dividend retrieval
         Oct 11 2014: Resolve bug where there is less than 3 entites for day trends.
                    : Able to switch on and off printint.
                    : Resolve cases where there is problem with url download.
@@ -26,6 +27,7 @@
         Put in the 3 days data???
         detect large jump in volumen
         use dot to represent completion of one stock --> how to print all at one line??
+        eventuall combined the div and hist data set
 
 
     Learning:
@@ -44,6 +46,11 @@
         scipy and pandas regression
         http://stackoverflow.com/questions/14775068/how-to-apply-linregress-in-pandas-bygroup
         http://stackoverflow.com/questions/19991445/run-an-ols-regression-with-pandas-data-frame
+
+        get dividend url
+        real-chart.finance.yahoo.com/table.csv?s=558.SI&a=04&b=25&c=2001&d=09&e=18&f=2014&g=v&ignore=.csv
+        differences in the back where the g = v instead of d
+        interval change to v instead of d,m,y
         
 
 """
@@ -72,15 +79,19 @@ class YFHistDataExtr(object):
         self.hist_quotes_start_url = "http://ichart.yahoo.com/table.csv?s="
         self.hist_quotes_stock_portion_url = ''
         self.hist_quotes_date_interval_portion_url = ''
+        self.hist_quotes_date_dividend_portion_url = '' # dividend part (combined with the interval portion)
         self.hist_quotes_end_url = "&ignore=.csv"
         self.hist_quotes_full_url = ''
+        self.div_history_full_url = ''
 
         # Output storage
         self.hist_quotes_df = object()
         self.enable_save_raw_file = 1 # 1 - will save all the indivdual raw data
         self.hist_quotes_csvfile_path = r'c:\data\raw_stock_data' # for storing of all stock raw data
-        self.tempfile_sav_location = r'c:\data\temp\temp_hist_data_save.csv'
-        self.all_stock_df = []
+        self.tempfile_sav_location = r'c:\data\temp\temp_hist_div_data_save.csv'
+        self.all_stock_df = []# to trick it as len 0 item
+        self.all_stock_div_hist_df = []
+        self.all_stock_consolidated_div_df = []
 
         # Trend processing.
         self.processed_data_df = object()
@@ -146,8 +157,10 @@ class YFHistDataExtr(object):
         from_date_url_str = '&c=%s&a=%s&b=%s' %(start_date_tuple[0],start_date_tuple[1]-1, start_date_tuple[2]) 
         end_date_url_str = '&f=%s&d=%s&e=%s' %(end_date_tuple[0],end_date_tuple[1]-1, end_date_tuple[2]) 
         interval_str = '&g=d'
+        dividend_str = '&g=v'
 
         self.hist_quotes_date_interval_portion_url = from_date_url_str + end_date_url_str + interval_str
+        self.hist_quotes_date_dividend_portion_url = from_date_url_str + end_date_url_str + dividend_str
 
     def form_url_str(self, type = 'hist_quotes'):
         """ Form the url str necessary to get the .csv file.close
@@ -163,52 +176,86 @@ class YFHistDataExtr(object):
         self.hist_quotes_full_url = self.hist_quotes_start_url + self.hist_quotes_stock_portion_url +\
                                     self.hist_quotes_date_interval_portion_url \
                                     + self.hist_quotes_end_url
+
+        self.div_history_full_url = self.hist_quotes_start_url + self.hist_quotes_stock_portion_url +\
+                                        self.hist_quotes_date_dividend_portion_url \
+                                        + self.hist_quotes_end_url
              
-    def downloading_csv(self):
+    def downloading_csv(self, download_type = 'hist'):
         """ Download the csv information for particular stock.
+            download_type can be hist or div. If hist, will download the hist price.
+            If div, will download dividend history.
+            Kwargs:
+                download_type (str): hist or div (default hist).
         """
         self.download_fault = 0
 
-        url = URL(self.hist_quotes_full_url)
+        if download_type == 'hist':
+            target_url = self.hist_quotes_full_url
+            sav_filename = os.path.join(self.hist_quotes_csvfile_path,'hist_stock_price_'+ self.individual_stock_sym+ '.csv')
+        elif download_type == 'div':
+            target_url = self.div_history_full_url
+            sav_filename = os.path.join(self.hist_quotes_csvfile_path,'div_hist_'+ self.individual_stock_sym+ '.csv')
+        else:
+            print 'wrong download type'
+            raise
+
+        url = URL(target_url)
         f = open(self.tempfile_sav_location, 'wb') # save as test.gif
         try:
             f.write(url.download())#if have problem skip
         except:
-            print 'Problem with processing this data: ', self.hist_quotes_full_url
+            print 'Problem with processing this data: ', target_url
             self.download_fault =1
         f.close()
 
         if not self.download_fault:
             if self.enable_save_raw_file:
-                sav_filename = os.path.join(self.hist_quotes_csvfile_path,'hist_stock_price_'+ self.individual_stock_sym+ '.csv')
                 shutil.copyfile(self.tempfile_sav_location,sav_filename )
 
-    def save_stockdata_to_df(self):
+    def save_stockdata_to_df(self, download_type = 'hist'):
         """ Create dataframe for the results.
             Achieved by reading the .csv file and retrieving the results using pandas.
+            Will save separately to self.all_stock_df or self.all_stock_div_hist_df depending on the dowload type
+            Kwargs:
+                download_type (str): hist or div (default hist).
         """
         self.hist_quotes_individual_df = pandas.read_csv(self.tempfile_sav_location)
         self.hist_quotes_individual_df['SYMBOL'] = self.individual_stock_sym
 
-        if len(self.all_stock_df) == 0:
-            self.all_stock_df = self.hist_quotes_individual_df
-        else:
-            self.all_stock_df = self.all_stock_df.append(self.hist_quotes_individual_df)
+        if download_type == 'hist':
+            if len(self.all_stock_df) == 0:
+                self.all_stock_df = self.hist_quotes_individual_df
+            else:
+                self.all_stock_df = self.all_stock_df.append(self.hist_quotes_individual_df)
+                
+        elif download_type == 'div':
+            if len(self.all_stock_div_hist_df) == 0:
+                self.all_stock_div_hist_df = self.hist_quotes_individual_df
+            else:
+                self.all_stock_div_hist_df = self.all_stock_div_hist_df.append(self.hist_quotes_individual_df)
         
     def get_hist_data_of_all_target_stocks(self):
         """ Combine the cur quotes function.
             Formed the url, download the csv, put in the header. Have a dataframe object.
+            Will get both the hist price and the div data
         """
         for stock in self.all_stock_sym_list:
             if self.print_current_processed_stock: print 'Processing stock: ', stock
             self.set_stock_to_retrieve(stock)
             self.form_url_str()
             if self.print_current_processed_stock: print self.hist_quotes_full_url
-            self.downloading_csv()
+            
+            ## get the hist data
+            self.downloading_csv(download_type = 'hist')
             if not self.download_fault:
-                self.save_stockdata_to_df()
+                self.save_stockdata_to_df(download_type = 'hist')
+            ## get the div data
+            self.downloading_csv(download_type = 'div')
+            if not self.download_fault:
+                self.save_stockdata_to_df(download_type = 'div')
 
-    ## methods for postprocessing data set
+    ## methods for postprocessing data set -- hist data
     def removed_zero_vol_fr_dataset(self):
         """ Remove any stocks data that have volume = 0. Meaning no transaction during that day
             Set to self.processed_data_df. 
@@ -260,16 +307,61 @@ class YFHistDataExtr(object):
         self.filter_most_recent_stock_data()
         self.get_trend_of_last_3_days()
 
+    ## for processing dividend data
+    def process_dividend_hist_data(self):
+        """ Function for processing the dividend hist data
+
+        """
+        self.insert_yr_mth_col_to_div_df()
+        self.get_num_div_payout_per_year()
+        
+                  
+    def insert_yr_mth_col_to_div_df(self):
+        """ Insert the year and month of dividend to div df.
+            Based on the self.all_stock_div_hist_df["Date"] to get the year and mth str.
+            Set back to self.all_stock_div_hist_df
+        """
+        self.all_stock_div_hist_df['Div_year'] = self.all_stock_div_hist_df['Date'].map(lambda x: int(x[:4]))
+        self.all_stock_div_hist_df['Div_mth'] = self.all_stock_div_hist_df['Date'].map(lambda x: int(x[6:7]))
+
+    def get_cur_year_mth(self):
+        """ Get the current year and mth.
+            Returns:
+                (int): Year in yyyy
+                (int): mth in mm
+        """
+        now = datetime.datetime.now()
+        return int(now.year), int(now.month)
+
+    def get_num_div_payout_per_year(self):
+        """ Get the number of div payout per year, group by symbol and year.
+            Exclude the curr year information.
+        """
+        curr_yr, curr_mth = self.get_cur_year_mth()
+
+        ## exclude the current year as dividend might not have pay out yet and keep within 4 years period
+        target_div_hist_df = self.all_stock_div_hist_df[~(self.all_stock_div_hist_df['Div_year']== curr_yr)]
+        target_div_hist_df = target_div_hist_df[target_div_hist_df['Div_year']>= curr_yr-4]
+
+        ## get the div payout each year in terms of count
+        div_cnt_df =  target_div_hist_df.groupby(['SYMBOL', 'Div_year']).agg("count").reset_index()
+        div_payout_df = div_cnt_df.groupby('SYMBOL').agg('mean').reset_index()[['SYMBOL','Dividends']].rename(columns = {'Dividends':'NumDividendperYear'})
+
+        ## get the number of years div pay for 4 year period --4 means every year.
+        div_cnt_yr_basis_df = div_cnt_df.groupby('SYMBOL').agg('count').reset_index()[['SYMBOL','Div_year']].rename(columns = {'Div_year':'NumYearPayin4Yr'})
+
+        ## join the data frame
+        self.all_stock_consolidated_div_df = pandas.merge(div_payout_df,div_cnt_yr_basis_df, on = 'SYMBOL')
 
 if __name__ == '__main__':
     
     print "start processing"
     
-    choice = 1
+    choice = 5
 
     if choice == 1:
         data_ext = YFHistDataExtr()
-        data_ext.set_interval_to_retrieve(10)
+        data_ext.set_interval_to_retrieve(365*5)
         data_ext.set_multiple_stock_list(['OV8.SI','S58.SI'])
         #data_ext.set_stock_to_retrieve('OV8.SI')
         data_ext.get_trend_data()
@@ -281,7 +373,37 @@ if __name__ == '__main__':
         w = data_ext.processed_data_df
         grouped_symbol = w.groupby("SYMBOL")
         falling_data=  (grouped_symbol.nth(0)['Adj Close']>= grouped_symbol.nth(1)['Adj Close'])  >= grouped_symbol.nth(2)['Adj Close']
+
+    if choice == 3:
+        """Check for dividend --no dividend from histor day"""
+        data_ext = YFHistDataExtr()
+        data_ext.set_interval_to_retrieve(700)
+        data_ext.set_multiple_stock_list(['S58.SI'])
+        data_ext.get_hist_data_of_all_target_stocks()
+        #data_ext.set_stock_to_retrieve('OV8.SI')
+
+    if choice ==4:
+        """Just for processing the dividend data"""
+        curr_yr =2014
+        curr_mth = 10
+        div_df = data_ext.all_stock_div_hist_df
+        div_df['Div_year'] = div_df['Date'].map(lambda x: int(x[:4]))
+        div_df['Div_mth'] = div_df['Date'].map(lambda x: int(x[6:7]))
+        target_div_hist_df = div_df[~(div_df['Div_year']== curr_yr)]
         
+        div_cnt_df =  target_div_hist_df.groupby(['SYMBOL', 'Div_year']).agg("count").reset_index()
+        print div_cnt_df.groupby('SYMBOL').agg('mean')
+
+    if choice ==5:
+        data_ext = YFHistDataExtr()
+        data_ext.set_interval_to_retrieve(365*5)
+        data_ext.set_multiple_stock_list(['OV8.SI','S58.SI'])
+        data_ext.get_hist_data_of_all_target_stocks()
+        data_ext.process_dividend_hist_data()
+        print data_ext.all_stock_consolidated_div_df
+
+
+
     #calculating support and resistance lines
         #need get the moving average --pandas use the rolling mean
 

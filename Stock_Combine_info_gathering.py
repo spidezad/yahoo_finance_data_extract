@@ -7,6 +7,11 @@
     TODO:
         combine prelim stock filter --> add in relevant data than secondary filter.
         Remove some of the word descriptions
+        storing data to noSQL database
+        how to print to text
+        add in modified parametesr
+        joined the filename
+        add in global data
 
 """
 
@@ -21,12 +26,14 @@ from yahoo_finance_historical_data_extract import YFHistDataExtr
 if __name__ == '__main__':
     choice  = 1
     partial_run = ['a','b','c','d']
-    partial_run = ['a']
+    partial_run = ['c']
 
     if choice == 1:
 
         ## parameters
+        final_store_filename = r'c:\data\full_oct16.csv'      
         #full_stock_data_df = object()
+
 
         ## Initial stage, getting most raw data.
         if 'a' in partial_run:
@@ -59,12 +66,16 @@ if __name__ == '__main__':
         ## 3 days trends data
             print "Getting Trends data"
             trend_ext = YFHistDataExtr()
+            trend_ext.set_interval_to_retrieve(365*5)
             trend_ext.enable_save_raw_file = 0
             trend_ext.set_multiple_stock_list(list(ss.modified_df['SYMBOL']))
             trend_ext.get_trend_data()
+            trend_ext.process_dividend_hist_data()
 
             full_stock_data_df = pandas.merge(ss.modified_df, trend_ext.price_trend_data_by_stock, on = 'SYMBOL')
-            #full_stock_data_df.to_csv(r'c:\data\full_oct11.csv', index = False)
+            full_stock_data_df = pandas.merge(full_stock_data_df, trend_ext.all_stock_consolidated_div_df, on = 'SYMBOL')
+            
+            full_stock_data_df.to_csv(r'c:\data\full_oct18.csv', index = False)
 
         if 'd' in partial_run:
             ## direct scraping for more data
@@ -79,11 +90,13 @@ if __name__ == '__main__':
             full_stock_data_df = pandas.merge(full_stock_data_df, dd.all_stock_df, on = 'SYMBOL')
 
             ## store all the data
-            full_stock_data_df.to_csv(r'c:\data\full_oct11.csv', index = False)
+            full_stock_data_df.to_csv(final_store_filename, index = False)
 
         if 'e' in partial_run:
             """Further filtering"""
             ## further filtering.
+            BasicFilter =  InfoBasicFilter(final_store_filename)
+            BasicFilter.loop_criteria()
 
     if  choice ==2:
         """do filtering and ranking on the filtering --> rank by priority"""
