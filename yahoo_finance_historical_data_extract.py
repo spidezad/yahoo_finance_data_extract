@@ -9,6 +9,7 @@
     https://code.google.com/p/yahoo-finance-managed/wiki/CSVAPI
 
     Updates:
+        Oct 22 2014: Add in identify dividend quarter. 
         Oct 18 2014: Add in dividend retrieval
         Oct 11 2014: Resolve bug where there is less than 3 entites for day trends.
                    : Able to switch on and off printint.
@@ -19,16 +20,9 @@
         Sep 16 2014: Enable multiple stocks data extract
 
     TODO:
-        Get today dates
-        Do dates manipulation\
-        how to convert the date time in pandas
-        able to intrepret the trends such as falling>
         if need the linear regression, need to convert date
-        Put in the 3 days data???
-        detect large jump in volumen
-        use dot to represent completion of one stock --> how to print all at one line??
-        eventuall combined the div and hist data set
-
+        detect large jump in volume --get average volumne??
+        year on year gain
 
     Learning:
         pandas get moving average
@@ -46,6 +40,9 @@
         scipy and pandas regression
         http://stackoverflow.com/questions/14775068/how-to-apply-linregress-in-pandas-bygroup
         http://stackoverflow.com/questions/19991445/run-an-ols-regression-with-pandas-data-frame
+
+        print without getting a new line
+        http://stackoverflow.com/questions/4499073/printing-without-newline-print-a-prints-a-space-how-to-remove
 
         get dividend url
         real-chart.finance.yahoo.com/table.csv?s=558.SI&a=04&b=25&c=2001&d=09&e=18&f=2014&g=v&ignore=.csv
@@ -240,7 +237,9 @@ class YFHistDataExtr(object):
             Formed the url, download the csv, put in the header. Have a dataframe object.
             Will get both the hist price and the div data
         """
+        print "Getting historical data plus dividend data for each stock."
         for stock in self.all_stock_sym_list:
+            sys.stdout.write('.')
             if self.print_current_processed_stock: print 'Processing stock: ', stock
             self.set_stock_to_retrieve(stock)
             self.form_url_str()
@@ -254,6 +253,7 @@ class YFHistDataExtr(object):
             self.downloading_csv(download_type = 'div')
             if not self.download_fault:
                 self.save_stockdata_to_df(download_type = 'div')
+        print 'Done\n'
 
     ## methods for postprocessing data set -- hist data
     def removed_zero_vol_fr_dataset(self):
@@ -307,15 +307,18 @@ class YFHistDataExtr(object):
         self.filter_most_recent_stock_data()
         self.get_trend_of_last_3_days()
 
+    ## YEar on Year gain.
+
     ## for processing dividend data
     def process_dividend_hist_data(self):
         """ Function for processing the dividend hist data
 
         """
         self.insert_yr_mth_col_to_div_df()
+        self.insert_dividend_quarter()
         self.get_num_div_payout_per_year()
+        self.get_dividend_payout_quarter_df()
         
-                  
     def insert_yr_mth_col_to_div_df(self):
         """ Insert the year and month of dividend to div df.
             Based on the self.all_stock_div_hist_df["Date"] to get the year and mth str.
@@ -323,6 +326,31 @@ class YFHistDataExtr(object):
         """
         self.all_stock_div_hist_df['Div_year'] = self.all_stock_div_hist_df['Date'].map(lambda x: int(x[:4]))
         self.all_stock_div_hist_df['Div_mth'] = self.all_stock_div_hist_df['Date'].map(lambda x: int(x[6:7]))
+
+    def insert_dividend_quarter(self):
+        """ Insert the dividend quarter. Based on Calender year.
+        """
+
+        #combined all the div mth??
+        self.all_stock_div_hist_df['Div_1stQuarter'] = self.all_stock_div_hist_df['Div_mth'].isin([1,2,3,])
+        self.all_stock_div_hist_df['Div_2ntQuarter'] = self.all_stock_div_hist_df['Div_mth'].isin([4,5,6])
+        self.all_stock_div_hist_df['Div_3rdQuarter'] = self.all_stock_div_hist_df['Div_mth'].isin([7,8,9])
+        self.all_stock_div_hist_df['Div_4thQuarter'] = self.all_stock_div_hist_df['Div_mth'].isin([10,11,12])
+
+    def get_dividend_payout_quarter_df(self):
+        """ Get the dividend payout quarter for each stock.
+            Based on curr year -1 as guage.
+            Append to the self.all_stock_consolidated_div_df
+        """
+        curr_yr, curr_mth = self.get_cur_year_mth()
+        target_div_hist_df = self.all_stock_div_hist_df[(self.all_stock_div_hist_df['Div_year']== curr_yr-1)]
+        def check_availiable1(s):
+            for n in s.values:
+                if n == True:
+                    return True
+            return False
+        target_div_hist_df = target_div_hist_df.groupby('SYMBOL').agg(check_availiable1).reset_index()[['SYMBOL','Div_1stQuarter','Div_2ntQuarter','Div_3rdQuarter','Div_4thQuarter' ]]
+        self.all_stock_consolidated_div_df = pandas.merge(self.all_stock_consolidated_div_df,target_div_hist_df, on = 'SYMBOL', how = 'left')
 
     def get_cur_year_mth(self):
         """ Get the current year and mth.
@@ -398,14 +426,13 @@ if __name__ == '__main__':
         data_ext = YFHistDataExtr()
         data_ext.set_interval_to_retrieve(365*5)
         data_ext.set_multiple_stock_list(['OV8.SI','S58.SI'])
-        data_ext.get_hist_data_of_all_target_stocks()
+        data_ext.get_hist_data_of_all_target_stocks()    
         data_ext.process_dividend_hist_data()
         print data_ext.all_stock_consolidated_div_df
+        print data_ext.price_trend_data_by_stock
 
 
 
-    #calculating support and resistance lines
-        #need get the moving average --pandas use the rolling mean
 
 
 

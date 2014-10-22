@@ -89,8 +89,9 @@ class YFinanceDataExtr(object):
         ## !!!
         self.cur_quotes_url_list = [] # store of all the url list being query. For debug.
 
-        # for debug
+        # for debug/printing
         self.store_individual_set_df = []
+        self.__print_url = 0 # for printing the url string
 
         # input file path
         # dict based on the file for different type of retrieval
@@ -224,7 +225,7 @@ class YFinanceDataExtr(object):
             Formed the url, download the csv, put in the header. Have a dataframe object.
         """
         self.form_url_str()
-        print self.cur_quotes_full_url
+        if self.__print_url: print self.cur_quotes_full_url
         self.downloading_csv(self.cur_quotes_full_url)
         self.cur_quotes_create_dataframe()
 
@@ -238,6 +239,9 @@ class YFinanceDataExtr(object):
         chunk_of_list = self.break_list_to_sub_list(self.full_stocklist_to_retrieve)
         self.temp_full_data_df = None
         for n in chunk_of_list:
+            # print the progress
+            sys.stdout.write('.')
+
             # set the small chunk of list
             self.set_target_stocks_list(n)
             self.get_cur_quotes()
@@ -252,6 +256,8 @@ class YFinanceDataExtr(object):
 
         ## Remove the % symbol fr self.temp_full_data_df columns
         self.rm_percent_symbol_fr_cols()
+
+        print 'Done\n'
 
     def rm_percent_symbol_fr_cols(self):
         """ Remove the % symbol from those columns that have this symbol.
@@ -303,9 +309,9 @@ if __name__ == '__main__':
         data_ext.load_stock_symbol_fr_file()
         
         ##comment below if running the full list.
-        #data_ext.set_full_stocklist_to_retrieve(['S58.SI','S68.SI'])
+        data_ext.set_full_stocklist_to_retrieve(['S58','J69U'])
         data_ext.get_cur_quotes_fr_list()
-        data_ext.temp_full_data_df.to_csv(r'c:\data\temp\temp_stockdata.csv', index = False)
+        #data_ext.temp_full_data_df.to_csv(r'c:\data\temp\temp_stockdata.csv', index = False)
 
     if choice == 2:
         data_ext = YFinanceDataExtr()

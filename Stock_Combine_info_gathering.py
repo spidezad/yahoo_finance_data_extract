@@ -4,6 +4,8 @@
 
     auto generate the temp file.
 
+    may need to merge on left...
+
     TODO:
         combine prelim stock filter --> add in relevant data than secondary filter.
         Remove some of the word descriptions
@@ -25,8 +27,8 @@ from yahoo_finance_historical_data_extract import YFHistDataExtr
 
 if __name__ == '__main__':
     choice  = 1
-    partial_run = ['a','b','c','d']
-    partial_run = ['c']
+    partial_run = ['a','b','c','d','e']
+    #partial_run = ['c']
 
     if choice == 1:
 
@@ -72,10 +74,10 @@ if __name__ == '__main__':
             trend_ext.get_trend_data()
             trend_ext.process_dividend_hist_data()
 
-            full_stock_data_df = pandas.merge(ss.modified_df, trend_ext.price_trend_data_by_stock, on = 'SYMBOL')
-            full_stock_data_df = pandas.merge(full_stock_data_df, trend_ext.all_stock_consolidated_div_df, on = 'SYMBOL')
+            full_stock_data_df = pandas.merge(ss.modified_df, trend_ext.price_trend_data_by_stock, on = 'SYMBOL', how ='left')
+            full_stock_data_df = pandas.merge(full_stock_data_df, trend_ext.all_stock_consolidated_div_df, on = 'SYMBOL', how ='left')
             
-            full_stock_data_df.to_csv(r'c:\data\full_oct18.csv', index = False)
+            full_stock_data_df.to_csv(r'c:\data\full_oct21.csv', index = False)
 
         if 'd' in partial_run:
             ## direct scraping for more data
@@ -87,7 +89,7 @@ if __name__ == '__main__':
             print dd.all_stock_df
             
             ## will have to merge the two data set
-            full_stock_data_df = pandas.merge(full_stock_data_df, dd.all_stock_df, on = 'SYMBOL')
+            full_stock_data_df = pandas.merge(full_stock_data_df, dd.all_stock_df, on = 'SYMBOL', how ='left')
 
             ## store all the data
             full_stock_data_df.to_csv(final_store_filename, index = False)
@@ -101,7 +103,6 @@ if __name__ == '__main__':
     if  choice ==2:
         """do filtering and ranking on the filtering --> rank by priority"""
 
-
-
+    raw_input()
 
 
