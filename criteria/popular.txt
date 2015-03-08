@@ -1,0 +1,7 @@
+$greater
+VOLUME:1000000
+DAYSLOW:0.35 
+Mean Recommendation (this week):1.1
+
+$less
+PERATIO:20

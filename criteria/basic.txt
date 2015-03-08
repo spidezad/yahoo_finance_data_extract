@@ -1,0 +1,11 @@
+$greater
+#PERATIO:3
+AVERAGEDAILYVOLUME:0
+OPEN:0.08
+
+$less
+PERATIO:38
+OPEN:50
+
+$compare
+1:YEARHIGH,OPEN,greater,0 

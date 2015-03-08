@@ -1,0 +1,15 @@
+$greater
+PERATIO:4
+NumYearPayin4Yr:3
+#Current Ratio (mrq):1.5
+Qtrly Earnings Growth (yoy):0
+#DilutedEPS:0
+
+
+
+$less
+PERATIO:15
+
+
+$compare
+1:Pre3rdYear_avg,OPEN,greater,0 

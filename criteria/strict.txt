@@ -1,0 +1,21 @@
+$greater
+#Volume:999999
+PERATIO:4
+CurrentRatio:1.5
+#Qtrly Earnings Growth (yoy):0
+DilutedEPS:0
+LeveredFreeCashFlow:0
+EPSESTIMATECURRENTYEAR:0
+NumYearPayin4Yr:2
+TRAILINGANNUALDIVIDENDYIELDINPERCENT:2
+#QtrlyEarningsGrowth:0
+ReturnonAssets:0
+
+$less
+PERATIO:15
+PEGRatio:1.2
+PRICEBOOK:1.5
+TotalDebtEquity:70
+
+$compare
+1:YEARHIGH,OPEN,greater,0 

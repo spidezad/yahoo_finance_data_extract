@@ -1,0 +1,10 @@
+$greater
+TRAILINGANNUALDIVIDENDYIELDINPERCENT:5
+NumYearPayin4Yr:3
+LeveredFreeCashFlow:-1
+
+$less
+TrailingAnnualDividendYieldInPercent:100
+#PERATIO:22
+TotalDebtEquity:50
+PRICEBOOK:1.5

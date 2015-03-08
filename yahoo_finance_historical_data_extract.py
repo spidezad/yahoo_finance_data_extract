@@ -9,6 +9,9 @@
     https://code.google.com/p/yahoo-finance-managed/wiki/CSVAPI
 
     Updates:
+        Dec 20 2014: Add in combined run.
+                   : Add in pre 3rd year avg data
+        Oct 30 2014: Enable shorten printing of error
         Oct 22 2014: Add in identify dividend quarter. 
         Oct 18 2014: Add in dividend retrieval
         Oct 11 2014: Resolve bug where there is less than 3 entites for day trends.
@@ -19,10 +22,6 @@
                    : Able to save all data dataframe for further processing.
         Sep 16 2014: Enable multiple stocks data extract
 
-    TODO:
-        if need the linear regression, need to convert date
-        detect large jump in volume --get average volumne??
-        year on year gain
 
     Learning:
         pandas get moving average
@@ -48,7 +47,17 @@
         real-chart.finance.yahoo.com/table.csv?s=558.SI&a=04&b=25&c=2001&d=09&e=18&f=2014&g=v&ignore=.csv
         differences in the back where the g = v instead of d
         interval change to v instead of d,m,y
-        
+
+    TODO:
+        if need the linear regression, need to convert date
+        detect large jump in volume --get average volumne??
+        year on year gain
+        store the data and get from local storage??
+        Add in the symbol for each stock --> have a function called generate all data .csv
+
+        will put all the data to sql?? design the arhitecture for thsi
+
+        need to be able to extract from database and select date only within selected range.
 
 """
 
@@ -68,9 +77,14 @@ class YFHistDataExtr(object):
         # Param
         ## self.target_stocks use mainly for a few stocks.
         ## it also use when setting the 45 or 50 stocks at a time to url
-        self.target_stocks = ['S58.SI','S68.SI'] ##special character need to be converted
+        self.all_stock_sym_list = ['S58.SI','S68.SI'] ##special character need to be converted
         self.individual_stock_sym = '' #full range fo stocks
-        self.date_interval = 10 # the number of dates to retrieve, temp  default to 1 day per interval 
+        self.date_interval = 10 # the number of dates to retrieve, temp  default to 1 day per interval
+        self.bypass_data_downloading = 0 # bypass the downloading of data --> enable calling from database
+##        self.get_data_fr_database = 0 # if 1, will get data from database.
+##
+##        # Database parametes
+##        self.hist_database_path = r'C:\data\stock_sql_db\stock_hist.db'
                                                 
         # URL forming 
         self.hist_quotes_start_url = "http://ichart.yahoo.com/table.csv?s="
@@ -89,6 +103,7 @@ class YFHistDataExtr(object):
         self.all_stock_df = []# to trick it as len 0 item
         self.all_stock_div_hist_df = []
         self.all_stock_consolidated_div_df = []
+        self.all_stock_combined_post_data_df = []
 
         # Trend processing.
         self.processed_data_df = object()
@@ -102,6 +117,19 @@ class YFHistDataExtr(object):
         # Fault check
         self.download_fault = 0
 
+        ## print
+        self.__print_download_fault = 0 # if 1, print statement on download problem.
+
+    def set_bypass_data_download(self):
+        """ Set the bypass of data download"""
+        self.bypass_data_downloading = 1
+
+    def set_raw_dataset(self, hist_price_df, hist_div_df):
+        """ Set the raw data set. Use in cases where the data loading is bypass and just need data processing.
+            
+        """
+        self.all_stock_df = hist_price_df
+        self.all_stock_div_hist_df = hist_div_df 
 
     def set_stock_to_retrieve(self, stock_sym):
         """ Set the stock symbol required for retrieval.
@@ -202,7 +230,7 @@ class YFHistDataExtr(object):
         try:
             f.write(url.download())#if have problem skip
         except:
-            print 'Problem with processing this data: ', target_url
+            if self.__print_download_fault: print 'Problem with processing this data: ', target_url
             self.download_fault =1
         f.close()
 
@@ -225,12 +253,20 @@ class YFHistDataExtr(object):
                 self.all_stock_df = self.hist_quotes_individual_df
             else:
                 self.all_stock_df = self.all_stock_df.append(self.hist_quotes_individual_df)
+
+            ## Include additional parameters in self.all_stock_df
+            self.breakdown_date_in_stock_df() 
                 
         elif download_type == 'div':
             if len(self.all_stock_div_hist_df) == 0:
                 self.all_stock_div_hist_df = self.hist_quotes_individual_df
             else:
                 self.all_stock_div_hist_df = self.all_stock_div_hist_df.append(self.hist_quotes_individual_df)
+
+    def breakdown_date_in_stock_df(self):
+        """ Add in additional paramters such as Date breakdown to append to self.all_stock_df.
+        """
+        self.all_stock_df['Year'] = self.all_stock_df['Date'].map(lambda x: int(x[:4]))
         
     def get_hist_data_of_all_target_stocks(self):
         """ Combine the cur quotes function.
@@ -238,8 +274,8 @@ class YFHistDataExtr(object):
             Will get both the hist price and the div data
         """
         print "Getting historical data plus dividend data for each stock."
+        print "Will run twice: one for historical data, the other for dividend"
         for stock in self.all_stock_sym_list:
-            sys.stdout.write('.')
             if self.print_current_processed_stock: print 'Processing stock: ', stock
             self.set_stock_to_retrieve(stock)
             self.form_url_str()
@@ -253,6 +289,9 @@ class YFHistDataExtr(object):
             self.downloading_csv(download_type = 'div')
             if not self.download_fault:
                 self.save_stockdata_to_df(download_type = 'div')
+                sys.stdout.write('.')
+            else:
+                sys.stdout.write('E:%s'%stock)
         print 'Done\n'
 
     ## methods for postprocessing data set -- hist data
@@ -351,6 +390,7 @@ class YFHistDataExtr(object):
             return False
         target_div_hist_df = target_div_hist_df.groupby('SYMBOL').agg(check_availiable1).reset_index()[['SYMBOL','Div_1stQuarter','Div_2ntQuarter','Div_3rdQuarter','Div_4thQuarter' ]]
         self.all_stock_consolidated_div_df = pandas.merge(self.all_stock_consolidated_div_df,target_div_hist_df, on = 'SYMBOL', how = 'left')
+        
 
     def get_cur_year_mth(self):
         """ Get the current year and mth.
@@ -381,17 +421,44 @@ class YFHistDataExtr(object):
         ## join the data frame
         self.all_stock_consolidated_div_df = pandas.merge(div_payout_df,div_cnt_yr_basis_df, on = 'SYMBOL')
 
+    ## year trends
+    def get_prev_3rd_yr_df(self):
+        """ Get the prev 3rd year avg data.
+            Return:
+                (Dateframe): results of prior 3rd year avg data
+        """
+        curr_yr, curr_mth = self.get_cur_year_mth()
+        target_div_hist_df = self.all_stock_df[(self.all_stock_df['Year']== curr_yr-2)]
+        prev_3rd_yr_df = target_div_hist_df.groupby('SYMBOL').agg('mean').reset_index()[['SYMBOL','Adj Close']].rename(columns = {'Adj Close':'Pre3rdYear_avg'})
+        return prev_3rd_yr_df
+
+    ## combined run
+    def run_all_hist_data(self):
+        """ Run all post processed function."""
+
+        if not self.bypass_data_downloading:
+            self.get_hist_data_of_all_target_stocks()
+        self.get_trend_data()
+        self.process_dividend_hist_data()
+        prev_3rd_yr_df = self.get_prev_3rd_yr_df()
+        self.all_stock_combined_post_data_df = pandas.merge(self.price_trend_data_by_stock,\
+                                                            self.all_stock_consolidated_div_df,\
+                                                            on = 'SYMBOL', how ='left')
+        self.all_stock_combined_post_data_df = pandas.merge(self.all_stock_combined_post_data_df,\
+                                                    prev_3rd_yr_df,\
+                                                    on = 'SYMBOL', how ='left')
+
 if __name__ == '__main__':
     
     print "start processing"
     
-    choice = 5
+    choice = 6
 
     if choice == 1:
         data_ext = YFHistDataExtr()
         data_ext.set_interval_to_retrieve(365*5)
         data_ext.set_multiple_stock_list(['OV8.SI','S58.SI'])
-        #data_ext.set_stock_to_retrieve('OV8.SI')
+        data_ext.set_stock_to_retrieve('OV8.SI')
         data_ext.get_trend_data()
         
         print data_ext.processed_data_df        
@@ -425,11 +492,21 @@ if __name__ == '__main__':
     if choice ==5:
         data_ext = YFHistDataExtr()
         data_ext.set_interval_to_retrieve(365*5)
-        data_ext.set_multiple_stock_list(['OV8.SI','S58.SI'])
-        data_ext.get_hist_data_of_all_target_stocks()    
-        data_ext.process_dividend_hist_data()
-        print data_ext.all_stock_consolidated_div_df
-        print data_ext.price_trend_data_by_stock
+        data_ext.set_multiple_stock_list(['OV8.SI','BN4.SI'])
+        data_ext.run_all_hist_data()
+        #print data_ext.all_stock_consolidated_div_df
+        print data_ext.all_stock_combined_post_data_df
+
+    if choice == 6:
+        """ Try disable downloading data."""
+        """ Use in conjunction with the get datafrom database"""
+
+        data_ext = YFHistDataExtr()
+        data_ext.set_bypass_data_download()
+        data_ext.set_raw_dataset(f.hist_price_df, f.hist_div_df)
+        data_ext.run_all_hist_data()
+        #print data_ext.all_stock_consolidated_div_df
+        print data_ext.all_stock_combined_post_data_df
 
 
 

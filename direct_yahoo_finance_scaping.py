@@ -1,24 +1,12 @@
 """
-https://developer.yahoo.com/finance/company.html
---> RSS feed
-https://code.google.com/p/yahoo-finance-managed/wiki/miscapiRssFeed
-language
-https://developer.yahoo.com/boss/search/boss_api_guide/supp_regions_lang.html
---> not very useful....
-
-Nicer way to initialzie a dcit
-
-## main to get the cash flow earning  data
-
-
-## quick way to pass in the dom object --> like having two iterations --> make it a habit
-## or make it go number of depth defined (recusion)???
-## may not need as can be nested within the str.
-
-## handle cases where there is problem on the webpage
-##handle time out and also when the quey limt
-
+    
+Module: Direct Yahoo Finance Scraping Module
+Name:   Tan Kok Hua
+Programming Blog: http://simplypython.wordpress.com/
+Usage: To retrieve statistics through direct scraping that cannot be retrieved from YF API.
+    
 Updates:
+    Oct 30 2014: Add in different print function and add in single line progress printing.
     Oct 04 2014: Have additional str to append to stock symbol (.SI)
     Oct 02 2014: Convert the Symbol to capital letters
     Sep 01 2014: Modified the header value function. Update on more data on 50 and 200 days movin avg
@@ -30,26 +18,18 @@ Learning:
     create  an empty dataframe
     http://stackoverflow.com/questions/13784192/creating-an-empty-pandas-dataframe-then-filling-it
 
-
-May have hit limit after a while. Need time to rest before retrieving
-
 TODO:
-    Handle balance sheet.
-    Group the industry
-    Debt to equity ratio
-    cash flow
-    need to get the financial out first
-    See if can go down to lowest set for data
-    How to parse indvidual parameters
-    Print format be more nicer.
-    Add in .SI to make the search more easy to get.
-    (Append additional data to the stock) --> have post prepend option
-    print error if timeout = 1
-    option not to print some of the paramters.
+    More parameters to handle
+        Debt to equity ratio
+        cash flow
+    can put the .SI to url as this is scrape one by one
+    print those that are in errror.
+    May have hit limit after a while. Need time to rest before retrieving
 
 DEBUG:
     Analyst ranking is not present --> take note when doing combinng
     To check if better way to do combining
+    check on OP0 error getting
 
 """
 import os, re, sys, time, datetime, copy
@@ -64,16 +44,15 @@ class YFinanceDirectScrape(object):
     def __init__(self):
 
         ## general param
-        self.all_stock_sym_list = list()    # for all stock input.
+        self.all_stock_sym_list     = list()    # for all stock input.
         self.individual_stock_sym   = ''
-        ## extra parameters to append to the stock symbol.
-        self.stock_sym_append_str = '.SI'   # default ".SI"
+        self.stock_sym_append_str   = '.SI'     # default ".SI", extra parameters to append to the stock symbol.
         
         ## printing option -- for printing additional information
-        self.print_url_str = 0              # 1- will print url str to be query
+        self.print_url_str          = 0         # 1- will print url str to be query
         
         ## url forming -- for individual stock
-        self.start_url              = ''    # will be preloaded with different start url.
+        self.start_url              = ''        # will be preloaded with different start url.
         self.individual_stock_url   = ''
         self.full_url_str           = ''
 
@@ -90,9 +69,6 @@ class YFinanceDirectScrape(object):
                               }
 
         ## selector for dom objects mainly for parsing the results.
-        ## still use the self.param_selector for selecting
-        ## may need additional str --> how to include additonal str?? or just create a function for it??
-        ## or put it all as header data str??
         self.css_selector_dict = {
                                 'Company_desc': 'div#yfi_business_summary div[class="bd"]',
                                 'analyst_opinion':['td[class="yfnc_tablehead1"]','td[class="yfnc_tabledata1"]'], # analyst -- header, data str
@@ -122,18 +98,22 @@ class YFinanceDirectScrape(object):
         ## fault detection
         self.url_query_timeout = 0 # for time out issue when query.
 
+        ## print option
+        self.__print_individual_stock_data = 0  # for verbose printing of stock progress
+        self.__print_parsing_problem = 0        # for those symbol that have problem
+        self.__print_url_finding_error = 0      # print problem with url handling
+
     def set_stock_sym_append_str(self, append_str):
         """ Set additional append str to stock symbol.
-            Set to sel.stock_sym_append_str
+            Set to sel.stock_sym_append_str.
             Args:
                 append_str (str): additional str to append to stock symbol.
-        
         """
         self.stock_sym_append_str = append_str
 
     def set_stock_to_retrieve(self, stock_sym):
         """ Set the stock symbol required for retrieval.
-            Will append the self.stock_sym_append_str to the stock symbol
+            Will append the self.stock_sym_append_str to the stock symbol.
             Args:
                 stock_sym (str): Input the stock symbol.
         """
@@ -201,7 +181,7 @@ class YFinanceDirectScrape(object):
             url = URL(self.full_url_str)
             self.dom_object = DOM(url.download(cached=True))
         except:
-            print 'Problem retrieving data for this url: ', self.full_url_str
+            if self.__print_url_finding_error: print 'Problem retrieving data for this url: ', self.full_url_str
             self.url_query_timeout = 1
 
     def __dom_object_isempty(self, dom_object):
@@ -212,7 +192,7 @@ class YFinanceDirectScrape(object):
                 (bool): True if empty.
         """
         if len(dom_object) == 0:
-            print 'Nothing being parsed'
+            if self.__print_parsing_problem: print 'Nothing being parsed'
             return True
         else:
             return False
@@ -236,7 +216,7 @@ class YFinanceDirectScrape(object):
 
         """
         for n in self.start_url_dict.keys():
-            print 'Parsing parameters: ', n
+            if self.__print_individual_stock_data: print 'Parsing parameters: ', n
             self.set_param_selector(n)
             self.form_full_url()
             if self.print_url_str: print self.full_url_str
@@ -357,7 +337,7 @@ class YFinanceDirectScrape(object):
         """
         for n in self.all_stock_sym_list:
             self.clear_all_temp_store_data()
-            print 'Getting info for stock: ', n
+            if self.__print_individual_stock_data: print 'Getting info for stock: ', n
             self.set_stock_to_retrieve(n)
             self.parse_all_parameters()
 
@@ -374,14 +354,15 @@ class YFinanceDirectScrape(object):
                         self.permanent_header_list = copy.copy(self.header_list)
                     else:
                         self.all_stock_df = self.all_stock_df.append(self.individual_stock_df)
+                sys.stdout.write('.')
+            else:
+                sys.stdout.write('T:%s'%n) #if time out problem, print the error
 
-            print '*'* 18
-            print
+            if self.__print_individual_stock_data: print '*'* 18, '\n'
 
         ## set the object to file
         self.all_stock_df = self.all_stock_df.reindex(columns = self.permanent_header_list)
         self.all_stock_df.to_csv(r'c:\data\extrainfo.csv', index=False)
-
 
 
 if __name__ == '__main__':
@@ -439,13 +420,14 @@ if __name__ == '__main__':
         # convert from pandas object to list
         #stock_list = list(stock_list['SYMBOL'])
         #stock_list = list(stock_list['Symbol'])
-        stock_list = ['S58','C0R3']
+        stock_list = ['S58','C0R3', 'OO']
         #stock_list = ['S58.SI']
         #stock_list =  stock_list[:10]
 
         ss = YFinanceDirectScrape()
         ss.set_multiple_stock_list(stock_list)
         ss.obtain_multiple_stock_data()
+        print
         print ss.all_stock_df
 
     if choice == 5:
@@ -471,16 +453,6 @@ if __name__ == '__main__':
         ss.form_full_url()
             
 
-
-##        total_df = []
-##        for n in stock_list[:10]:
-##            print n
-##            ss.set_stock_to_retrieve(n)
-##            ss.value_list = []
-##            ss.header_list = []
-##            ss.parse_all_parameters()
-##            print ss.individual_stock_df
-##            total_df.append(ss.individual_stock_df)
 
     
     

@@ -5,7 +5,12 @@
     YF API from:
     https://code.google.com/p/yahoo-finance-managed/wiki/CSVAPI
 
+    Required modules:
+        Pandas
+        Pattern
+
     Updates:
+        Nov 15 2014: Add in set_quotes_properties for the major indices.
         Oct 18 2014: Add in rm_percent_symbol_fr_cols to remove % from columns
         Oct 15 2014: Add in clear cache to prevent persistant data store problem
         Oct 05 2014: Add in function to add addtional str to stock symbol eg (.SI)
@@ -37,8 +42,11 @@
 
         Gettting industrial PE
         http://biz.yahoo.com/p/industries.html
-        
-    Bugs:
+
+        add in here with the yql features?? or inherit from this??
+        Can generalize some of the commands here for better portability
+
+        problem with cache again.
 
                 
 """
@@ -50,7 +58,7 @@ from pattern.web import URL, extension, cache
  
 class YFinanceDataExtr(object):
     """ Class to extract data from yahoo finance.
-        Achieved by query the various url and downloading the respectively .csv files.
+        Achieved by query the various url (see Yahoo Finance API) and downloading the respectively .csv files.
         Further analysis of data done by pandas.
     """
     def __init__(self):
@@ -70,11 +78,12 @@ class YFinanceDataExtr(object):
         self.cur_quotes_parm_headers = ['NAME', 'SYMBOL', 'LATEST_PRICE', 'OPEN', 'CLOSE','VOL',
                                              'YEAR_HIGH','YEAR_LOW'] #label to be use when downloading.
                                             
-        # URL forming 
+        # URL forming for price details
         self.cur_quotes_start_url = "http://download.finance.yahoo.com/d/quotes.csv?s="
         self.cur_quotes_stock_portion_url = ''
         self.cur_quotes_stock_portion_additional_url = '.SI'# for adding additonal str to the stock url.
         self.cur_quotes_property_portion_url = ''
+        self.cur_quotes_property_str = 'nsl1opvkj' #default list of properties to copy.
         self.cur_quotes_end_url = "&e=.csv"
         self.cur_quotes_full_url = ''
 
@@ -138,6 +147,14 @@ class YFinanceDataExtr(object):
                 list_of_stocks (list): target list of stocks to set
         """
         self.target_stocks = list_of_stocks
+
+    def set_column_headers(self,param_headers):
+        """ Set column headers for the data.
+            Set to self.cur_quotes_parm_headers.
+            Args:
+                param_headers (list): list of column names
+        """
+        self.cur_quotes_parm_headers = param_headers
         
     def form_cur_quotes_stock_url_str(self):
         """ Form the list of stock portion for the cur quotes url.
@@ -171,18 +188,27 @@ class YFinanceDataExtr(object):
         target_properties = ''.join([n[0].encode().strip() for n in self.xls_property_data.data_value_list])
         self.cur_quotes_property_portion_url =  start_str + target_properties
 
+    def set_quotes_properties(self, target_properties = 'nsl1opvkj' ):
+        """ Set the quotes properties use in form_cur_quotes_property_url_str function.
+            Set to self.cur_quotes_property_str.
+            Kwargs:
+                target_properties (str): 'nsl1opvkj'
+                Default properties:
+                    Current use default parameters.
+                    name(n0), symbol(s), the latest value(l1), open(o) and the close value of the last trading day(p)
+                    volumn (v), year high (k), year low(j)
+
+        """
+        self.cur_quotes_property_str = target_properties
+
     def form_cur_quotes_property_url_str(self):
         """ To form the properties/parameters of the data to be received for current quotes
-            To eventually utilize the get_table_fr_xls.
-            Current use default parameters.
-            name(n0), symbol(s), the latest value(l1), open(o) and the close value of the last trading day(p)
-            volumn (v), year high (k), year low(j)
+            Can also form from the form_cur_quotes_property_url_str_fr_excel function
 
             Further info can be found at : https://code.google.com/p/yahoo-finance-managed/wiki/enumQuoteProperty
         """
         start_str = '&f='
-        target_properties = 'nsl1opvkj'
-        self.cur_quotes_property_portion_url =  start_str + target_properties
+        self.cur_quotes_property_portion_url =  start_str + self.cur_quotes_property_str
 
     def form_url_str(self, type = 'cur_quotes'):
         """ Form the url str necessary to get the .csv file.close
@@ -234,6 +260,7 @@ class YFinanceDataExtr(object):
             Limit for the url is 50. Take care where list exceed 50.
             For safeguard, clip limit to 49.
         """
+
         ## full list with special characters take care
         full_list = self.replace_special_characters_in_list(self.full_stocklist_to_retrieve)
         chunk_of_list = self.break_list_to_sub_list(self.full_stocklist_to_retrieve)
@@ -299,7 +326,7 @@ if __name__ == '__main__':
     
     print "start processing"
     
-    choice = 1
+    choice = 4
 
     if choice == 1:
         data_ext = YFinanceDataExtr()
@@ -326,18 +353,24 @@ if __name__ == '__main__':
             print '---'
 
     if choice == 4:
-        """ Resolve the percentage problem
-
-            Get columns if it is str attibute or of certain column names percent
-            Remove character based on below
-            http://stackoverflow.com/questions/13682044/pandas-dataframe-remove-unwanted-parts-from-strings-in-a-column
+        """ Use this to pull the global indices
+            symbol, LastTradePriceOnly,LastTradeDate ,LastTradeTime, Change, Open, DaysHigh , DaysLow , Volume
+            Change the header to inlcude te year high and year low.
 
         """
-        f = pandas.read_csv(r'c:\data\temp\temp_stockdata.csv')
-        col_with_percent = [n for n in f.columns if re.search('PERCENT',n)] #may overkill the yield in perent
-        #col_with_percent.remove("TRAILINGANNUALDIVIDENDYIELDINPERCENT")
-        for col in col_with_percent:
-            f[col] = f[col].map(lambda x: float(str(x).rstrip('%')))
+        data_ext = YFinanceDataExtr()
+        data_ext.set_stock_sym_append_str('')
+        data_ext.enable_form_properties_fr_exceltable = 0 
+        data_ext.set_full_stocklist_to_retrieve(['%5EVIX','%5EGSPC','%5ESTI','%5EDJI','%5EIXIC','%5EHSI','%5EN225'])
+        data_ext.set_quotes_properties('nsl1op2kj')
+        print data_ext.cur_quotes_property_portion_url 
+        data_ext.set_column_headers(['NAME', 'SYMBOL', 'LATEST_PRICE', 'OPEN','ChangeInPercent', 'YEAR_HIGH','YEAR_LOW'])
+        print data_ext.cur_quotes_parm_headers
+        data_ext.get_cur_quotes_fr_list()
+        print data_ext.temp_full_data_df
+
+
+
 
 
         

@@ -1,0 +1,10 @@
+$greater
+VOLUME:999999
+DILUTEDEPS:0
+TRAILINGANNUALDIVIDENDYIELDINPERCENT:4
+DAYSLOW:1.1
+Qtrly Earnings Growth (yoy):0
+
+$less
+TrailingAnnualDividendYieldInPercent:10
+PERATIO:15
