@@ -13,6 +13,7 @@
     may need the time in for the test
 
     Updates:
+        Mar 11 2015: Resolve bug in repeated entries in setup_db_for_hist_prices_storage by re-initialize variables.
         Mar 04 2015: Add in function to get stock list from database
         Feb 22 2015: Add limit to the date retrieval --> affect self.hist_price_df
 
@@ -105,6 +106,12 @@ class FinanceDataStore(object):
         histdata_extr.enable_save_raw_file = 0
 
         for sub_list in self.break_list_to_sub_list(stock_sym_list):
+
+            ## re -initalize the df
+            histdata_extr.all_stock_df = pandas.DataFrame()
+            histdata_extr.processed_data_df = pandas.DataFrame()
+            histdata_extr.all_stock_div_hist_df = pandas.DataFrame()
+
             print 'processing sub list', sub_list
             histdata_extr.set_multiple_stock_list(sub_list)
             histdata_extr.get_hist_data_of_all_target_stocks()
@@ -232,7 +239,7 @@ if __name__ == '__main__':
 
     db_full_path = r'C:\data\stock_sql_db\stock_hist.db'
 
-    selection  = 7
+    selection  = 5
 
     if selection == 1:
         f = FinanceDataStore(db_full_path)
@@ -263,7 +270,7 @@ if __name__ == '__main__':
         f = FinanceDataStore(db_full_path)
 
         ## stock symbol path
-        file = r'c:\data\full_Feb12.csv'
+        file = r'C:\data\compile_stockdata\full_20150405.csv'
         full_stock_data_df = pandas.read_csv(file)
         stock_list = list(full_stock_data_df['SYMBOL'])
 

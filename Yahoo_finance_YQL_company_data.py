@@ -32,17 +32,11 @@
         https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20yahoo.finance.historicaldata%20where%20symbol%20in%20(%22BN4.SI%22%2C%22BS6.SI%22)%20and%20startDate%20%3D%20%222009-09-11%22%20and%20endDate%20%3D%20%222010-03-10%22&format=json&diagnostics=true&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=
 
     Updates:
+        Mar 12 2015: Add in getting dividend from keystats (dividend info in list which initially not able to obtain.
         Feb 18 2015: Add in hist data retrieval with the columns similar to that in database
         Feb 12 2015: Have the strip % function.
 
     TODO:
-        can add in sector informaton all that
-        Remove % from the columns
-        If use yahoo finance, a lot of data are missing.
-
-        Add in the company info tables (rank the company tables)
-        Use YQL --> yahoo.finance.stocks
-
         Each finance script must be able to attach to main table bound by Symbol
 
         Let the formation of url str be universal and just change ouptut
@@ -50,8 +44,11 @@
 
         industrial data can be obtained by getting the all stocks and group by sector and industry??
         --> results may skew due to data missing.
+        --> get from SGX??
 
         Add in the dividend data for the last parts.
+
+        Bug cannot handle single stock
 
 
 """
@@ -241,6 +238,10 @@ class YComDataExtr(YFinanceDataExtr):
                 elif type(indivdual_set[parameters]) == dict:
                     if indivdual_set[parameters].has_key('content'):
                         temp_dict_data[parameters] = indivdual_set[parameters]['content']
+                # special handling for getting trailing dividend, which is a list
+                elif parameters == 'TrailingAnnualDividendYield':
+                    temp_dict_data['TRAILINGANNUALDIVIDENDYIELD'] = indivdual_set[parameters][0]
+                    temp_dict_data['TRAILINGANNUALDIVIDENDYIELDINPERCENT'] = indivdual_set[parameters][1]
 
             ## append to list
             self.datatype_com_data_allstock_list.append(temp_dict_data)
@@ -286,7 +287,7 @@ class YComDataExtr(YFinanceDataExtr):
             Set to self.temp_full_data_df
         """
         col_with_percent = ['OperatingMargin','ProfitMargin', 'QtrlyEarningsGrowth', 'QtrlyRevenueGrowth',
-                            'ReturnonAssets','ReturnonEquity']
+                            'ReturnonAssets','ReturnonEquity','TRAILINGANNUALDIVIDENDYIELDINPERCENT']
         for col in col_with_percent:
             self.com_data_allstock_df[col] = self.com_data_allstock_df[col].map(lambda x: float(str(x).rstrip('%').replace(',','')))
 
@@ -373,7 +374,7 @@ if __name__ == '__main__':
     
     print "start processing"
     
-    choice = 5       
+    choice = 3       
 
     if choice == 1:
         """try the download format of  YQL"""
@@ -411,19 +412,22 @@ if __name__ == '__main__':
 
     if choice ==3:
         """ test the class """
-        file = r'c:\data\full_Feb08.csv'
-        full_stock_data_df = pandas.read_csv(file)
+##        file = r'c:\data\full_Feb08.csv'
+##        full_stock_data_df = pandas.read_csv(file)
 
         w = YComDataExtr()
-        w.set_full_stocklist_to_retrieve(list(full_stock_data_df['SYMBOL']))
+        #w.set_full_stocklist_to_retrieve(list(full_stock_data_df['SYMBOL']))
+        w.set_full_stocklist_to_retrieve(['J69U.SI','BN4.SI'])
 ##        w.retrieve_company_symbol()
 ##        chunk_of_list = w.break_list_to_sub_list(w.full_stocklist_to_retrieve)
 ##        w.full_stocklist_to_retrieve  = chunk_of_list[0][:3]
         w.retrieve_all_results()
-
+         
+        print w.com_data_allstock_df
         ##
-        full_stock_data_df = pandas.merge(full_stock_data_df, w.com_data_allstock_df, on= 'SYMBOL')
-        full_stock_data_df.to_csv(file, index = False)
+        ##full_stock_data_df = pandas.merge(full_stock_data_df, w.com_data_allstock_df, on= 'SYMBOL')
+
+        #full_stock_data_df.to_csv(file, index = False)
 
     if choice ==4:
         file = r'c:\data\temp\temp_stockdata.csv'

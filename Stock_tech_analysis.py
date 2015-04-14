@@ -57,6 +57,8 @@ To do:
 
     need to remove some of the columns such as date price etc
 
+    the average percentage drop
+
 
 """
 import os, re, sys, time, datetime, copy, shutil
@@ -283,7 +285,7 @@ if __name__ == '__main__':
      
     print "start processing"
     
-    choice = [1]
+    choice = [4]
 
     stocklist = ['BN4.SI','BS6.SI','U96.SI','J69U.SI','S05.SI', 'AGS.SI',
              'N4E.SI','AJBU.SI','T8JU.SI',
@@ -293,7 +295,7 @@ if __name__ == '__main__':
         """ Try the analysis class        """
         stocklist = ['BN4.SI','BS6.SI','U96.SI','J69U.SI','S05.SI', 'AGS.SI',
                      'N4E.SI','AJBU.SI','T8JU.SI',
-                     'OV8.SI','500.SI', 'SV3U.SI', 'P13.SI']
+                     'OV8.SI','500.SI', 'SV3U.SI', 'P13.SI', 'C2PU.SI','STX']
         w = TechAnalysisAdd(stocklist)
         w.retrieve_hist_data()
         w.add_analysis_parm()

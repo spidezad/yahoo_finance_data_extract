@@ -3,6 +3,7 @@
     Conolidiated script for making decision.
 
     Updates:
+        Mar 14 2015: Auto set the filename with current date
         Feb 18 2015: Fast run with data get from database and allow storage of com data.
 
     TODO:
@@ -28,6 +29,39 @@ from Yahoo_finance_YQL_company_data import YComDataExtr
 from hist_data_storage import FinanceDataStore
 from Stock_tech_analysis import TechAnalysisAdd
 
+def set_last_desired_date( num_days = 0):
+    """ Return the last date in which the results will be displayed.
+        It is set to be the current date - num of days as set by users.
+        Affect only self.print_feeds function.
+        Kwargs:
+            num_days (int): num of days prior to the current date.
+            Setting to 0 will only retrieve the current date
+        Returns:
+            (int): datekey as yyyyymmdd.
+    """
+    last_eff_date_list = list((datetime.date.today() - datetime.timedelta(num_days)).timetuple()[0:3])
+
+    if len(str(last_eff_date_list[1])) == 1:
+        last_eff_date_list[1] = '0' + str(last_eff_date_list[1])
+
+    if len(str(last_eff_date_list[2])) == 1:
+        last_eff_date_list[2] = '0' + str(last_eff_date_list[2])
+
+    return str(last_eff_date_list[0]) + str(last_eff_date_list[1]) + str(last_eff_date_list[2])
+
+def get_filename(dir_path, filename_prefix, offset_to_cur_date = 0, file_ext = '.csv'):
+    """ Generate the filename based on current date.
+        Args:
+            dir_path (str): full dir path
+            filename_prefix (str): filename prefix before the date
+            offset_to_cur_date (int): num of days offset to current
+        Kwargs:
+            file_ext (str): extension of the file.
+        Return:
+            (str): file path
+    """
+    return os.path.join(dir_path, filename_prefix + set_last_desired_date(offset_to_cur_date)+ file_ext )
+
 if __name__ == '__main__':
 
     ## list of parameters
@@ -46,7 +80,7 @@ if __name__ == '__main__':
     if choice == 1:
 
         ## parameters
-        final_store_filename = r'c:\data\full_Mar06.csv'      
+        final_store_filename = get_filename(r'c:\data\compile_stockdata', 'full_')  
         full_stock_data_df = object()
 
 

@@ -48,6 +48,7 @@
 
         problem with cache again.
 
+        Need to remove those date that are old
                 
 """
 
@@ -326,18 +327,22 @@ if __name__ == '__main__':
     
     print "start processing"
     
-    choice = 4
+    choice = 1
 
     if choice == 1:
         data_ext = YFinanceDataExtr()
-
+        data_ext.enable_form_properties_fr_exceltable = 0
+        data_ext.cur_quotes_property_str = 'nsl1opvkjy2'
+        data_ext.cur_quotes_parm_headers = ['NAME', 'SYMBOL', 'LATEST_PRICE', 'OPEN', 'CLOSE','VOL',
+                                     'YEAR_HIGH','YEAR_LOW', 'd'] #label to be use when downloading.
         ## running all stock information
-        data_ext.set_stock_retrieval_type('watcher')
-        data_ext.load_stock_symbol_fr_file()
+##        data_ext.set_stock_retrieval_type('watcher')
+##        data_ext.load_stock_symbol_fr_file()
         
         ##comment below if running the full list.
         data_ext.set_full_stocklist_to_retrieve(['S58','J69U'])
         data_ext.get_cur_quotes_fr_list()
+        print data_ext.temp_full_data_df
         #data_ext.temp_full_data_df.to_csv(r'c:\data\temp\temp_stockdata.csv', index = False)
 
     if choice == 2:
