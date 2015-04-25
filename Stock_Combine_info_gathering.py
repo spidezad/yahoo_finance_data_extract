@@ -15,7 +15,16 @@
         add in the morning star data.
 
         May set it to run every day.
-        
+
+
+        need create folder
+        need to reorder the list
+
+    Learning:
+        http://stackoverflow.com/questions/12329853/how-to-rearrange-pandas-column-sequence
+
+    Bugs:
+        company data is not working --> YQL might be broken
 
 """
 
@@ -23,11 +32,12 @@ import re, sys, os, time, datetime
 import pandas
 
 from Basic_data_filter import InfoBasicFilter
+from Yahoo_finance_YQL_company_data import YComDataExtr
 from yahoo_finance_data_extract import YFinanceDataExtr
 from yahoo_finance_historical_data_extract import YFHistDataExtr
-from Yahoo_finance_YQL_company_data import YComDataExtr
 from hist_data_storage import FinanceDataStore
 from Stock_tech_analysis import TechAnalysisAdd
+from SGX_stock_announcement_extract import SGXDataExtract 
 
 def set_last_desired_date( num_days = 0):
     """ Return the last date in which the results will be displayed.
@@ -72,9 +82,9 @@ if __name__ == '__main__':
 
 
     choice  = 1
-    partial_run = ['a','b','c_pre','c','d_pre','e','f', 'g']#e is storing data
+    partial_run = ['a2','b','c_pre','c','e','f', 'g']#e is storing data
     #partial_run = ['a','b','c_pre','c','d','e','f', 'g']#e is storing data
-    #partial_run = ['a','b','c1']
+    #partial_run = ['e']
 
 
     if choice == 1:
@@ -82,6 +92,19 @@ if __name__ == '__main__':
         ## parameters
         final_store_filename = get_filename(r'c:\data\compile_stockdata', 'full_')  
         full_stock_data_df = object()
+
+        if 'a2' in partial_run:
+            print "Getting Data from the SGX instead of YUI."
+            print "-------------------------------------"
+            data_ext = SGXDataExtract()
+            data_ext.process_all_data()
+            temp_full_data_df = data_ext.sgx_curr_plus_company_df
+            temp_full_data_df["SYMBOL"]  = temp_full_data_df["SYMBOL"] + '.SI'
+            
+            ## save to temp file for enable filtering
+            temp_full_data_df.to_csv(r'c:\data\temp\temp_stockdata.csv')
+            print "Getting Main dataset from YUI -- Done"
+            print 
 
 
         ## Initial stage, getting most raw data.
@@ -184,7 +207,8 @@ if __name__ == '__main__':
         if 'e' in partial_run:
             ## tech analysis
             print 'Tech analysis '
-            w = TechAnalysisAdd(list(full_stock_data_df['SYMBOL']))
+            sym_list = list(full_stock_data_df['SYMBOL'])
+            w = TechAnalysisAdd(sym_list)
             w.enable_pull_fr_database()
             w.retrieve_hist_data()
             w.add_analysis_parm()
@@ -195,6 +219,25 @@ if __name__ == '__main__':
             full_stock_data_df = pandas.merge(full_stock_data_df, w.processed_histdata_combined, on = 'SYMBOL', how ='left')
 
         if 'f' in partial_run:
+            
+            # reorder the data before storing
+            def set_column_sequence(dataframe, seq):
+                """ Takes a dataframe and a subsequence of its columns, returns dataframe with seq as first columns
+                    From stackoverfrow:
+                    http://stackoverflow.com/questions/12329853/how-to-rearrange-pandas-column-sequence
+                """
+                cols = seq[:] # copy so we don't mutate seq
+                for x in dataframe.columns:
+                    if x not in cols:
+                        cols.append(x)
+                return dataframe[cols]
+
+            full_stock_data_df = set_column_sequence(full_stock_data_df, ['CompanyName', 'SYMBOL', 'OPEN', 'DailyVolume', 'PERATIO',\
+                                                                          'PRICEBOOK', 'TotalDebtEquity', 'eps',\
+                                                                          'TRAILINGANNUALDIVIDENDYIELDINPERCENT', 'NumDividendperYear',\
+                                                                          'NumYearPayin4Yr','industry', 'industryGroup', 'marketCap',\
+                                                                          'basicEpsIncl', 'beta5Yr'])
+
             ## store all the data
             full_stock_data_df.to_csv(final_store_filename, index = False)
             print "Getting additional data from YF -- Done"

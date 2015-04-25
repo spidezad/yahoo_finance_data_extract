@@ -1,14 +1,14 @@
 $greater
 DilutedEPS:0
 LeveredFreeCashFlow:0
-NumYearPayin4Yr:2
-TRAILINGANNUALDIVIDENDYIELDINPERCENT:2
+NumYearPayin4Yr:3
+TRAILINGANNUALDIVIDENDYIELDINPERCENT:3
 #QtrlyEarningsGrowth:0
 ReturnonAssets:0
 
 $less
-PERATIO:17
-TotalDebtEquity:40
+PERATIO:13
+TotalDebtEquity:30
 
 $compare
 1:YEARHIGH,OPEN,greater,0 

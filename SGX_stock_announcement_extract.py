@@ -3,6 +3,9 @@
     Also include the json web extract class.
 
     Updates:
+        Apr 22 2015: Combined shortsell with curr price. notification add in shortsell vol perc
+        Apr 20 2015: Add in shortsell info function and notification
+        Apr 18 2015: Replace the str variable with non keyword url_data
         Apr 14 2015: Change the price alert for lower, only alert when price >0 
         Apr 09 2015: Add in get stock announcment from excel.
         Mar 26 2015: Have the price limit alert.
@@ -25,6 +28,10 @@
 
         custom alerts
         need to creat a dataframe that can have date montior
+
+        need to combine with the current volume for short volumne percentagate
+
+        should put the df formation in process_all_data fucntion
 
 """
 
@@ -74,10 +81,11 @@ class WebJsonRetrieval(object):
         url = URL(self.com_data_full_url)
         f = open(self.saved_json_file, 'wb') # save as test.gif
         try:
-            str = url.download(timeout = 50)
+            url_data = url.download(timeout = 50)
         except:
-            str = ''
-        f.write(str) 
+            url_data = ''
+
+        f.write(url_data) 
         f.close()
 
     def process_json_data(self):
@@ -118,6 +126,13 @@ class SGXDataExtract(WebJsonRetrieval):
                                 'curr_price': ('http://sgx.com/JsonRead/JsonData?qryId=RStock&timeout=30',
                                                  'items'),
                                 }
+
+        ## for short sell information.
+        self.shortsell_info_start_url = 'http://sgx.com/wps/wcm/connect/sgx_en/home/market_info/short_sale/short_sale_daily/DailyShortSell'
+        self.shortsell_date_url = '20150417'
+        self.shortsell_end_url= '.txt'
+        self.shortsell_full_url = r''
+
         ## parameters
         self.saved_json_file = r'c:\data\temptryyql.json'
         self.saved_parm_df_dict = {} #storing the final df in dict with type as keyword
@@ -130,7 +145,9 @@ class SGXDataExtract(WebJsonRetrieval):
         self.sgx_announ_df = pandas.DataFrame()
         self.sgx_div_ex_date_df = pandas.DataFrame()
         self.sgx_curr_price_df = pandas.DataFrame()
-        self.price_limit_alerts_df = pandas.DataFrame()        
+        self.price_limit_alerts_df = pandas.DataFrame()
+        self.shortsell_info_df = pandas.DataFrame()
+        self.sgx_curr_plus_company_df = pandas.DataFrame()
 
         ## shortend output version for alert creation
         self.div_ex_date_shtver = ''
@@ -145,7 +162,8 @@ class SGXDataExtract(WebJsonRetrieval):
                              param_start_key = 'stock//', param_end_key = 'stock_end//',
                              header_key = 'header#2//', col_len = 2)
         xls_set_class.open_excel_and_process_block_data()
-        self.announce_watchlist = xls_set_class.data_label_list
+        self.announce_watchlist = xls_set_class.data_label_list #also get the company name
+        self.companyname_watchlist = [n[0].encode() for n in xls_set_class.data_value_list] #also get the company name
                
     #May add this method to the base class
     def modify_json_file(self):
@@ -216,6 +234,14 @@ class SGXDataExtract(WebJsonRetrieval):
             self.convert_json_to_df()
             self.saved_parm_df_dict[sgx_item] = self.result_json_df
 
+        ## retrieve the shortsell info which is separate from the retrieval dict
+        self.retrieve_shortsell_info()   
+
+        ## form the various dataframe.
+        self.retrieve_curr_price_df()
+        self.joined_curr_to_company_info_data()
+            
+
     def convert_date_to_datekey(self, offset_to_current = 0):
         """ Function mainly for the hist data where it is required to specify a date range.
             Default return current date. (offset_to_current = 0)
@@ -273,6 +299,23 @@ class SGXDataExtract(WebJsonRetrieval):
         """
         sgx_stockinfo_df = self.saved_parm_df_dict['company_info']
         return sgx_stockinfo_df
+
+    def joined_curr_to_company_info_data(self):
+        """ Joined the current price df to the company information.
+            Will be used to replace the yahoo finance curr data.
+
+        """
+        stock_info_df = self.saved_parm_df_dict['company_info']
+        self.sgx_curr_plus_company_df = pandas.merge(self.sgx_curr_price_df, stock_info_df, left_on = 'SYMBOL', right_on ='tickerCode')
+
+        #change some of the symbol to match the stock combine data set.
+        self.sgx_curr_plus_company_df = self.sgx_curr_plus_company_df.rename(columns={'peRatio':'PERATIO',
+                                                                                 'priceToBookRatio':'PRICEBOOK',
+                                                                                 'dividendYield':'TRAILINGANNUALDIVIDENDYIELDINPERCENT',
+                                                                                 'volume':'AVERAGEDAILYVOLUME',
+                                                                                 'OpenPrice':'OPEN',
+                                                                                 'totalDebtEquity':'TotalDebtEquity',
+                                                                                })
         
     def joined_relevent_sgx_data(self):
         """ Join the company info to the company announcement and sgx ex div data.
@@ -333,8 +376,6 @@ class SGXDataExtract(WebJsonRetrieval):
 
     def retrieve_curr_price_df(self):
         """ Separate the current price df and also rename the columns.
-        B: buy, BV: BuyVolume, C:Change,H:high, L:low, LT: Last, NC: Symbol, N: CompanyName
-        O:Open, P: PercentChange, R: Remark, S:Sell, V: Value, VL: volume
 
         """
         self.sgx_curr_price_df = self.saved_parm_df_dict['curr_price']
@@ -344,8 +385,117 @@ class SGXDataExtract(WebJsonRetrieval):
                                                'NC':'SYMBOL','N':'CompanyName',
                                                'O':'OpenPrice','P':'PricePercentChange',
                                                'R':'SGXRemark','S':'SellPrice',
-                                               'V':'Value','VL':'DailyVolumne',
+                                               'V':'Value','VL':'DailyVolume',
                                                 },inplace =True)
+ 
+        for parameter in ['DailyVolume','BuyVolume']:
+            self.sgx_curr_price_df[parameter] = self.sgx_curr_price_df[parameter] * 1000 #convert to actual shares
+        
+
+    def retrieve_shortsell_info(self):
+        """ Retrieve the shortsell information.
+            will form the url and retrieved the information using pandas to make into table.
+            The function will set to self_shortsell_info_df.
+            make it iterat over the days to get the latest data
+        """
+        for last_effective_date in range(7): 
+            self.form_shortsell_url(last_effective_date)
+            url = URL(self.shortsell_full_url)
+            try:
+                #see data is available for that current date
+                url_data = url.download(timeout = 50)
+                shortsell_list = pandas.io.html.read_html(url_data)
+                self.shortsell_info_df =shortsell_list[1]
+            except:
+                continue
+
+            #continue if there is no data
+            if len(self.shortsell_info_df) == 0: continue
+
+            self.shortsell_info_df.rename(columns={0:'Security',1:'Short Sale Volume',
+                                                  2:'Currency',3:'Short Sale Value',
+                                                    },inplace =True)
+            self.shortsell_info_df = self.shortsell_info_df[1:-3]
+            #change type of the columns
+            self.shortsell_info_df[['Short Sale Volume', 'Short Sale Value']] = self.shortsell_info_df[['Short Sale Volume', 'Short Sale Value']].astype(float)
+            #need a rank on the short sell
+            self.shortsell_info_df['ranked_shortsell'] = self.shortsell_info_df['Short Sale Volume'].rank(method='min',ascending=False)
+            self.shortsell_info_df['shortsell_lastdate'] = self.set_last_desired_date(last_effective_date)
+            #need percentage as well
+
+            # have a sorting of data?
+            return
+        
+        print 'No suitable data found within time frame.'
+        return
+        
+    def form_shortsell_url(self, last_effective_date):
+        """ Based on the current date to set the shorsell url.
+            Set to self.shortsell_full_url
+            Args:
+                last_effective_date (int): last desired date in yyyymmdd.
+        """
+        #retrieve the current date in yyyymmdd format
+        self.shortsell_date_url = self.set_last_desired_date(num_days = last_effective_date)
+        self.shortsell_full_url = self.shortsell_info_start_url + self.shortsell_date_url + self.shortsell_end_url
+        
+    def set_last_desired_date(self, num_days = 0):
+        """ Return the last date in which the results will be displayed.
+            It is set to be the current date - num of days as set by users.
+            Affect only self.print_feeds function.
+            Kwargs:
+                num_days (int): num of days prior to the current date.
+                Setting to 0 will only retrieve the current date
+            Returns:
+                (int): datekey as yyyyymmdd.
+        """
+        last_eff_date_list = list((datetime.date.today() - datetime.timedelta(num_days)).timetuple()[0:3])
+
+        if len(str(last_eff_date_list[1])) == 1:
+            last_eff_date_list[1] = '0' + str(last_eff_date_list[1])
+
+        if len(str(last_eff_date_list[2])) == 1:
+            last_eff_date_list[2] = '0' + str(last_eff_date_list[2])
+
+        return str(last_eff_date_list[0]) + str(last_eff_date_list[1]) + str(last_eff_date_list[2])
+
+    def shortsell_notification(self):
+        """ Use for alerts on shortsell information.
+            Identify top ten short sell plus target stock short sell information.
+
+        """
+        ## get the current price df so can combined with the shortsell info
+        self.process_all_data()
+        merged_shortsell_df = pandas.merge(self.shortsell_info_df,self.sgx_curr_price_df,left_on = 'Security', right_on = 'CompanyName' )
+
+        ## add in additional columns
+        merged_shortsell_df['shortsell_vol_per'] = merged_shortsell_df['Short Sale Volume']/merged_shortsell_df['DailyVolume']
+        merged_shortsell_df['ranked_percent_vol_shortsell'] = merged_shortsell_df['shortsell_vol_per'].rank(method='min',ascending=False)
+        
+        top_shortsell_df = merged_shortsell_df[merged_shortsell_df['ranked_shortsell'].isin(range(1,16))]
+        top_shortsell_df  = top_shortsell_df.sort(columns = 'ranked_shortsell', ascending =True)
+        top_shortsell_df = top_shortsell_df[['Security','Short Sale Volume','shortsell_lastdate']]
+        shortsell_top15_shtver = top_shortsell_df.to_string()
+
+        api_key_path = r'C:\Users\356039\Desktop\running bat\pushbullet_api\key.txt'
+        with open(api_key_path,'r') as f:
+            apiKey = f.read()
+
+        p = PushBullet(apiKey)
+
+        if shortsell_top15_shtver:
+            p.pushNote('all', 'Shortsell top10', shortsell_top15_shtver,recipient_type="random1")
+
+        ## display for target watchlist
+        tar_watchlist_shortsell_df = merged_shortsell_df[merged_shortsell_df['Security'].isin(self.companyname_watchlist)]
+        tar_watchlist_shortsell_df = tar_watchlist_shortsell_df[['Security','Short Sale Volume','ranked_shortsell','shortsell_vol_per','ranked_percent_vol_shortsell']]
+        tar_watchlist_shortsell_df =tar_watchlist_shortsell_df[tar_watchlist_shortsell_df['ranked_shortsell'].isin(range(1,100))]
+        tar_watchlist_shortsell_df  = tar_watchlist_shortsell_df.sort(columns = 'ranked_shortsell', ascending =True)
+        tar_watchlist_shortsell_shtver = tar_watchlist_shortsell_df.to_string()
+
+        if tar_watchlist_shortsell_shtver:
+            p.pushNote('all', 'Shortsell targetwatchlist', tar_watchlist_shortsell_shtver,recipient_type="random1")
+        
 
     def scan_price_limit_alert(self):
         """ Monitor the most current price and match it to the limit to watch.
@@ -445,12 +595,17 @@ def price_stream_alert():
     w = SGXDataExtract()
     w.process_all_data()
 
+    #make this to excel table for easier
     price_limit_reach_watchlist = [['OV8',0.83, 'greater'],  ['P13',0.19, 'lower'],
-                                    ['C2PU',2.20, 'lower'],
-                                   ['BS6',1.397, 'greater'],  ['U96',4.42, 'lower'],
+                                    ['C2PU',2.20, 'lower'], ['U96',4.55, 'lower'],
+                                   ['BS6',1.42, 'greater'],  ['U96',4.42, 'lower'],
                                     ['BN4',9.60, 'greater'], ['U96',4.75, 'greater'],
+                                   ['N4E',0.355, 'greater'], ['U96',4.82, 'greater'],
                                    ['BS6',1.35, 'lower'], ['U96',4.35, 'lower'],
-                                   ['N4E',0.33, 'greater'], ['T12',0.34, 'lower'],
+                                   ['N4E',0.33, 'lower'], ['T12',0.341, 'lower'],
+                                   ['BS6',1.39, 'lower'],['AGS',0.85, 'greater'],
+                                   ['N4E',0.33, 'lower'], ['B2F',3.55, 'lower'],
+                                   ['B2F',3.65, 'greater'],
                                     ]
     w.set_stock_to_watchlist(price_limit_reach_watchlist, watchlist_type = 'curr_price')
 
@@ -461,7 +616,6 @@ def price_stream_alert():
     p = PushBullet(apiKey)
 
     ## for price set alert
-    w.retrieve_curr_price_df()
     w.scan_price_limit_alert()
 
     if len(w.price_limit_alerts_df)>0:
@@ -472,7 +626,7 @@ def price_stream_alert():
 
 if __name__ == '__main__':
 
-    choice  = 6
+    choice  = 5
 
     if choice ==1:
 
@@ -561,6 +715,8 @@ if __name__ == '__main__':
 
         """
         w = SGXDataExtract()
+        #w.shortsell_notification()
+        #print w.shortsell_info_df
         w.process_all_data()        
 
     if choice == 6:
@@ -573,5 +729,32 @@ if __name__ == '__main__':
         xls_set_class.data_label_list
 
     if choice ==7:
-        """ Make custom alerts --> llist of dicts becasuse need to check the """
+        """ use the price extract here to pull """
+
+
+    if choice ==8:
+        """ Get the short sell volume. Need to get the shortsell vs the volumne traded that day
+            Url need change with the current date
+
+        """
+        target_url = 'http://sgx.com/wps/wcm/connect/sgx_en/home/market_info/short_sale/short_sale_daily/DailyShortSell20150417.txt'
+        url = URL(target_url)
+        url_data = url.download(timeout = 50)
+        shortsell_list = pandas.io.html.read_html(url_data)
+        shortsell_df =shortsell_list[1]
+        #ned to remove the first ropws
+        shortsell_df.rename(columns={0:'Security',1:'Short Sale Volume',
+                                              2:'Currency',3:'Short Sale Value',
+                                                },inplace =True)
+        shortsell_df = shortsell_df[1:-3]
+
+    if choice == 9:
+        """ combine the shortsell with the current price."""
+        w = SGXDataExtract()
+        w.process_all_data()
+        w.joined_relevent_sgx_data()
+        w.retrieve_curr_price_df() #formed the df
+        w.retrieve_shortsell_info()
+        
+
     

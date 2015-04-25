@@ -43,7 +43,7 @@
 """
 import os, sys, re, time, datetime
 import pandas
-from Dict_create_fr_text import DictParser
+from DictParser.Dict_create_fr_text import DictParser
 
 class InfoBasicFilter(object):
     """ Basic info filter by getting the curr stocks information for filtering.
@@ -256,7 +256,7 @@ class InfoBasicFilter(object):
                 if not n in sub_set_criteria_list:
                     continue
             self.set_criteria_type(n)
-            self.get_all_criteria_fr_file()
+            self.get_all_criteria_fr_file() #thsi is the problem
             self.print_full_filter_on_criteria_type()
             self.process_criteria()
             self.send_modified_to_file()
@@ -284,6 +284,6 @@ if __name__ == '__main__':
         #print ss.modified_df
 
     if choice ==3:
-        ss =  InfoBasicFilter(r'c:\data\full_Mar06.csv')
+        ss =  InfoBasicFilter(r'C:\data\compile_stockdata\full_20150424.csv')
         ss.loop_criteria()
 

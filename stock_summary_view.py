@@ -79,7 +79,7 @@ def is_current_date_file_exists(dir_path, filename_prefix, file_ext = '.csv'):
 
 if __name__ == "__main__":
 
-    choice = [2]
+    choice = [1]
 
     ## able to set the previous day if requird.
 
@@ -92,6 +92,12 @@ if __name__ == "__main__":
                       'Above_Boll_upper','Below_Boll_lower','price_above_50dexm','20dexm_above_50dexm',
                       'Industry','Sector']
 
+    target_columns = ['SYMBOL', 'CompanyName','OPEN','eps','PERATIO','PRICEBOOK',
+                      'TRAILINGANNUALDIVIDENDYIELDINPERCENT','NumDividendperYear',
+                      'NumYearPayin4Yr','Pre3rdYear_avg','returnOnEquity','TotalDebtEquity',
+                      'Above_Boll_upper','Below_Boll_lower','price_above_50dexm','20dexm_above_50dexm',
+                      'industry','industryGroup']
+
     if 1 in choice:
         print 'start'
         
@@ -102,7 +108,7 @@ if __name__ == "__main__":
         stocklist2 = ['BN4.SI','BS6.SI','U96.SI','J69U.SI','S05.SI', 'AGS.SI',
                      'N4E.SI','AJBU.SI','T8JU.SI',
                      'OV8.SI','500.SI', 'SV3U.SI']
-        stocklist3 = ['W05.SI','D6U.SI','558.SI','T12.SI','V03.SI','S23.SI','L03.SI','F9D.SI','KF4.SI','B61.SI']
+        stocklist3 = ['IX2.SI','S49.SI','U13.SI','5OI.SI','P19.SI','N01.SI','V03.SI','5ER.SI','D6U.SI','NO4.SI']
 
 
         w=  target_df[target_df['SYMBOL'].isin(stocklist3)][target_columns]

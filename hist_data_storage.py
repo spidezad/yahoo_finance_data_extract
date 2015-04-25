@@ -230,7 +230,7 @@ class FinanceDataStore(object):
         if len(str(last_eff_date_list[2])) == 1:
             last_eff_date_list[2] = '0' + str(last_eff_date_list[2])
     
-        return int(str(last_eff_date_list[0]) + last_eff_date_list[1] + str(last_eff_date_list[2]))
+        return int(str(last_eff_date_list[0]) + str(last_eff_date_list[1]) + str(last_eff_date_list[2]))
 
 
 if __name__ == '__main__':
@@ -239,7 +239,7 @@ if __name__ == '__main__':
 
     db_full_path = r'C:\data\stock_sql_db\stock_hist.db'
 
-    selection  = 5
+    selection  = 6
 
     if selection == 1:
         f = FinanceDataStore(db_full_path)
@@ -281,9 +281,9 @@ if __name__ == '__main__':
         f = FinanceDataStore(db_full_path)
 
         ## stock symbol path
-        file = r'c:\data\full_Feb12.csv'
+        file = r'C:\data\compile_stockdata\full_20150423.csv'
         full_stock_data_df = pandas.read_csv(file)
-        stock_list = list(full_stock_data_df['SYMBOL'])[:2]
+        stock_list = list(full_stock_data_df['SYMBOL'])
 
         f.retrieve_hist_data_fr_db(stock_list,0)
         f.extr_hist_price_by_date(200)

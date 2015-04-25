@@ -50,6 +50,8 @@
 
         Bug cannot handle single stock
 
+        remove the super class
+
 
 """
 
@@ -67,7 +69,7 @@ class YComDataExtr(YFinanceDataExtr):
         Retrieval in the form of json format. 
     """
     def __init__(self):
-        super(YComDataExtr, self).__init__()
+        #super(YComDataExtr, self).__init__()
 
         """ Dict for different different data url"""
         ## the dict will contain the (start url, end url str, json results tag)
@@ -233,8 +235,11 @@ class YComDataExtr(YFinanceDataExtr):
                 #for single data
                 continue # temp do not use
             for parameters in indivdual_set.keys():
-                if type(indivdual_set[parameters]) == str:
-                    temp_dict_data[parameters] = indivdual_set[parameters]#for symbol
+                if type(indivdual_set[parameters]) == str or type(indivdual_set[parameters]) == unicode:
+                    try:
+                        temp_dict_data[parameters] = indivdual_set[parameters]#for symbol
+                    except:
+                        print 'not working', parameters
                 elif type(indivdual_set[parameters]) == dict:
                     if indivdual_set[parameters].has_key('content'):
                         temp_dict_data[parameters] = indivdual_set[parameters]['content']
@@ -374,7 +379,7 @@ if __name__ == '__main__':
     
     print "start processing"
     
-    choice = 3       
+    choice = 5       
 
     if choice == 1:
         """try the download format of  YQL"""
@@ -439,7 +444,7 @@ if __name__ == '__main__':
             how to store the data -> store as dataframe but do not group.
             
         """
-        file = r'c:\data\full_Feb12.csv'
+        file = r'c:\data\full_Apr15.csv'
         full_stock_data_df = pandas.read_csv(file)
 
         w = YComDataExtr()
