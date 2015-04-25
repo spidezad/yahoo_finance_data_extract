@@ -79,10 +79,11 @@ def is_current_date_file_exists(dir_path, filename_prefix, file_ext = '.csv'):
 
 if __name__ == "__main__":
 
-    choice = [2]
+    choice = [1]
 
     ## able to set the previous day if requird.
 
+    ## need to include EPS
     target_file = get_filename(r'c:\data\compile_stockdata','full_') #need to scan teh file with latest date
     target_df = pandas.read_csv(target_file)
 
@@ -104,8 +105,9 @@ if __name__ == "__main__":
                      'OV8.SI','500.SI', 'SV3U.SI']
         stocklist3 = ['W05.SI','D6U.SI','558.SI','T12.SI','V03.SI','S23.SI','L03.SI','F9D.SI','KF4.SI','B61.SI']
 
-
-        w=  target_df[target_df['SYMBOL'].isin(stocklist3)][target_columns]
+        stocklist4 = ['W05.SI','M01.SI','BN2.SI','D38.SI','544.SI','KF4.SI','5NF.SI','N08.SI','M26.SI','5CH.SI']
+        
+        w=  target_df[target_df['SYMBOL'].isin(stocklist4)][target_columns]
 
         print w
 
