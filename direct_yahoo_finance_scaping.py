@@ -415,20 +415,22 @@ if __name__ == '__main__':
 
         ## read  data from .csv file -- full list of stocks
         csv_fname = r'C:\pythonuserfiles\yahoo_finance_data_extract\stocklist.csv'
-        csv_fname = r'C:\data\potential_data.csv'
-        #stock_list = pandas.read_csv(csv_fname)
+        csv_fname = r'C:\data\compile_stockdata\full_20150428.csv'
+        stock_df = pandas.read_csv(csv_fname)
         # convert from pandas object to list
-        #stock_list = list(stock_list['SYMBOL'])
+        stock_list = list(stock_df['SYMBOL'])
         #stock_list = list(stock_list['Symbol'])
-        stock_list = ['S58','C0R3', 'OO']
+        #stock_list = ['S58','C0R3', 'OO']
         #stock_list = ['S58.SI']
-        #stock_list =  stock_list[:10]
+        #stock_list =  stock_list[:3]
 
         ss = YFinanceDirectScrape()
+        ss.set_stock_sym_append_str('')
         ss.set_multiple_stock_list(stock_list)
         ss.obtain_multiple_stock_data()
         print
         print ss.all_stock_df
+        ss.all_stock_df.to_csv(r'C:\data\stock_sql_db\company_data.csv',index=False)
 
     if choice == 5:
         ss.all_stock_df = None        

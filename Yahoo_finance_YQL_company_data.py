@@ -1,5 +1,5 @@
 """
-    YQL for company informaton. Similar to the website display but return as json for easiler scraping
+    YQL for company informaton. Similar to the website display but return as json for easier scraping
 
     Requires:
         Pandas
@@ -16,7 +16,7 @@
         Key financial stats
         Company information
         hist price
-        div??
+        div
         
     Ex of format:
         Company data for keppel (format in json)
@@ -32,6 +32,7 @@
         https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20yahoo.finance.historicaldata%20where%20symbol%20in%20(%22BN4.SI%22%2C%22BS6.SI%22)%20and%20startDate%20%3D%20%222009-09-11%22%20and%20endDate%20%3D%20%222010-03-10%22&format=json&diagnostics=true&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=
 
     Updates:
+        Apr 16 2015: Add in debug for cases with unicode. Affect function get_datalist_fr_json. Remove the super class
         Mar 12 2015: Add in getting dividend from keystats (dividend info in list which initially not able to obtain.
         Feb 18 2015: Add in hist data retrieval with the columns similar to that in database
         Feb 12 2015: Have the strip % function.
@@ -42,15 +43,10 @@
         Let the formation of url str be universal and just change ouptut
         May be easily simpilied to get all rest of dta.
 
-        industrial data can be obtained by getting the all stocks and group by sector and industry??
-        --> results may skew due to data missing.
-        --> get from SGX??
-
-        Add in the dividend data for the last parts.
-
         Bug cannot handle single stock
 
-        remove the super class
+
+
 
 
 """
@@ -69,7 +65,9 @@ class YComDataExtr(YFinanceDataExtr):
         Retrieval in the form of json format. 
     """
     def __init__(self):
+
         #super(YComDataExtr, self).__init__()
+
 
         """ Dict for different different data url"""
         ## the dict will contain the (start url, end url str, json results tag)
@@ -379,7 +377,7 @@ if __name__ == '__main__':
     
     print "start processing"
     
-    choice = 5       
+    choice = 3       
 
     if choice == 1:
         """try the download format of  YQL"""
@@ -448,7 +446,7 @@ if __name__ == '__main__':
         full_stock_data_df = pandas.read_csv(file)
 
         w = YComDataExtr()
-        w.set_full_stocklist_to_retrieve(list(full_stock_data_df['SYMBOL'])[:100])
+        w.set_full_stocklist_to_retrieve(list(full_stock_data_df['SYMBOL'])[:10])
         w.get_all_hist_data()
         print w.datatype_com_data_allstock_df.head()
 

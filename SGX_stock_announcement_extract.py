@@ -3,6 +3,8 @@
     Also include the json web extract class.
 
     Updates:
+        Apr 30 2015: Resolve bug where there is not data.
+                     Add in buy to sell volume ratio.
         Apr 22 2015: Combined shortsell with curr price. notification add in shortsell vol perc
         Apr 20 2015: Add in shortsell info function and notification
         Apr 18 2015: Replace the str variable with non keyword url_data
@@ -32,6 +34,10 @@
         need to combine with the current volume for short volumne percentagate
 
         should put the df formation in process_all_data fucntion
+
+        Need to store the data in case some data are missing.
+
+    Bug:need to settle case where some of table are missing.
 
 """
 
@@ -224,14 +230,23 @@ class SGXDataExtract(WebJsonRetrieval):
             self.set_url(sgx_item_url)
             self.set_target_tag(sgx_item_tag)
             self.download_json()
-            if sgx_item == 'company_info':
-                self.modify_jquery_json_file()
-            elif sgx_item == 'curr_price':
-                self.modify_jquery_json_file_for_curr_price()
-            else:
-                self.modify_json_file()
+            try:
+                if sgx_item == 'company_info':
+                    self.modify_jquery_json_file()
+                elif sgx_item == 'curr_price':
+                    self.modify_jquery_json_file_for_curr_price()
+                else:
+                    self.modify_json_file()
+            except:
+                print "problem modifying the json file",sgx_item
+                continue
+                
             self.process_json_data()
-            self.convert_json_to_df()
+            try:
+                self.convert_json_to_df()
+            except:
+                print "problem converting json to df, ", sgx_item
+                continue
             self.saved_parm_df_dict[sgx_item] = self.result_json_df
 
         ## retrieve the shortsell info which is separate from the retrieval dict
@@ -386,10 +401,14 @@ class SGXDataExtract(WebJsonRetrieval):
                                                'O':'OpenPrice','P':'PricePercentChange',
                                                'R':'SGXRemark','S':'SellPrice',
                                                'V':'Value','VL':'DailyVolume',
+                                               'SV':'SellVolume',
                                                 },inplace =True)
  
-        for parameter in ['DailyVolume','BuyVolume']:
+        for parameter in ['DailyVolume','BuyVolume','SellVolume']:
             self.sgx_curr_price_df[parameter] = self.sgx_curr_price_df[parameter] * 1000 #convert to actual shares
+
+        ## new parameters
+        self.sgx_curr_price_df['buy_to_sell_ratio'] = self.sgx_curr_price_df['BuyVolume'] / (self.sgx_curr_price_df['SellVolume']+1) #plus one to make it non zero
         
 
     def retrieve_shortsell_info(self):
@@ -596,16 +615,21 @@ def price_stream_alert():
     w.process_all_data()
 
     #make this to excel table for easier
-    price_limit_reach_watchlist = [['OV8',0.83, 'greater'],  ['P13',0.19, 'lower'],
+    #group together 
+    price_limit_reach_watchlist = [['OV8',0.83, 'greater'],['OV8',0.78, 'lower'],
+                                   ['P13',0.19, 'lower'], ['O23',1.65, 'lower'],
                                     ['C2PU',2.20, 'lower'], ['U96',4.55, 'lower'],
-                                   ['BS6',1.42, 'greater'],  ['U96',4.42, 'lower'],
-                                    ['BN4',9.60, 'greater'], ['U96',4.75, 'greater'],
-                                   ['N4E',0.355, 'greater'], ['U96',4.82, 'greater'],
+                                   ['BS6',1.46, 'greater'],  ['U96',4.42, 'lower'],
+                                    ['BN4',9.60, 'greater'], ['S05',0.9, 'greater'],
+                                   ['N4E',0.355, 'greater'], 
                                    ['BS6',1.35, 'lower'], ['U96',4.35, 'lower'],
-                                   ['N4E',0.33, 'lower'], ['T12',0.341, 'lower'],
+                                   ['T12',0.341, 'lower'],
                                    ['BS6',1.39, 'lower'],['AGS',0.85, 'greater'],
-                                   ['N4E',0.33, 'lower'], ['B2F',3.55, 'lower'],
-                                   ['B2F',3.65, 'greater'],
+                                   ['N4E',0.33, 'lower'], 
+                                   ['B2F',3.65, 'greater'],['S63',3.48, 'lower'],
+                                   ['AGS',0.819, 'greater'],['B2F',3.4, 'lower'],
+                                   ['J69U',2.02, 'lower'],['S63',3.75, 'lower'],
+                                   ['C22',1.1, 'lower'],
                                     ]
     w.set_stock_to_watchlist(price_limit_reach_watchlist, watchlist_type = 'curr_price')
 
@@ -717,7 +741,8 @@ if __name__ == '__main__':
         w = SGXDataExtract()
         #w.shortsell_notification()
         #print w.shortsell_info_df
-        w.process_all_data()        
+        w.process_all_data()
+        w.sgx_curr_price_df.to_csv(r'c:\data\temp.csv',index =False)
 
     if choice == 6:
         """ Use excel table to get the required stocks."""
@@ -755,6 +780,9 @@ if __name__ == '__main__':
         w.joined_relevent_sgx_data()
         w.retrieve_curr_price_df() #formed the df
         w.retrieve_shortsell_info()
+
+    if choice ==10:
+        """ determine the sell volumne to buy volumn ratio"""
         
 
     

@@ -82,9 +82,9 @@ if __name__ == '__main__':
 
 
     choice  = 1
-    partial_run = ['a2','b','c_pre','c','e','f', 'g']#e is storing data
+    partial_run = ['a2','b','c_pre','c','d_pre','e','f', 'g']#e is storing data
     #partial_run = ['a','b','c_pre','c','d','e','f', 'g']#e is storing data
-    #partial_run = ['e']
+    #partial_run = ['a2']
 
 
     if choice == 1:

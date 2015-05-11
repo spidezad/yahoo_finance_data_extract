@@ -83,6 +83,7 @@ if __name__ == "__main__":
 
     ## able to set the previous day if requird.
 
+    ## need to include EPS
     target_file = get_filename(r'c:\data\compile_stockdata','full_') #need to scan teh file with latest date
     target_df = pandas.read_csv(target_file)
 
@@ -94,7 +95,7 @@ if __name__ == "__main__":
 
     target_columns = ['SYMBOL', 'CompanyName','OPEN','eps','PERATIO','PRICEBOOK',
                       'TRAILINGANNUALDIVIDENDYIELDINPERCENT','NumDividendperYear',
-                      'NumYearPayin4Yr','Pre3rdYear_avg','returnOnEquity','TotalDebtEquity',
+                      'NumYearPayin4Yr','Pre3rdYear_avg','returnOnEquity','TotalDebtEquity','Operating Cash Flow (ttm)','Levered Free Cash Flow (ttm)',
                       'Above_Boll_upper','Below_Boll_lower','price_above_50dexm','20dexm_above_50dexm',
                       'industry','industryGroup']
 
@@ -110,8 +111,9 @@ if __name__ == "__main__":
                      'OV8.SI','500.SI', 'SV3U.SI']
         stocklist3 = ['IX2.SI','S49.SI','U13.SI','5OI.SI','P19.SI','N01.SI','V03.SI','5ER.SI','D6U.SI','NO4.SI']
 
-
-        w=  target_df[target_df['SYMBOL'].isin(stocklist3)][target_columns]
+        stocklist4 = ['BN2.SI','D38.SI','544.SI','M01.SI','W05.SI','N08.SI','5CH.SI','M26.SI','KF4.SI','5ER.SI','NO4.SI','D6U.SI','5OI.SI','N01.SI','P19.SI','IX2.SI','S49.SI','U13.SI','V03.SI']
+        
+        w=  target_df[target_df['SYMBOL'].isin(stocklist4)][target_columns]
 
         print w
 
